@@ -126,6 +126,14 @@ function App() {
     window.addEventListener('keydown', handleShortcut)
     return () => window.removeEventListener('keydown', handleShortcut)
   }, [captureProviderDialogOpener])
+  useEffect(() => {
+    if (providerDialogOpen || !providerDialogReturnFocusRef.current) return
+    const opener = providerDialogReturnFocusRef.current
+    providerDialogReturnFocusRef.current = null
+    window.requestAnimationFrame(() => {
+      if (opener.isConnected && !opener.hasAttribute('disabled')) opener.focus()
+    })
+  }, [providerDialogOpen])
 
   const generationMutation = useMutation<GenerationResult[], Error, GenerationPayload>({
     mutationFn: async ({ models, providers: generationProviders, prompt: currentPrompt, demoMode: useDemo, signal, token, runId, results }) => {
