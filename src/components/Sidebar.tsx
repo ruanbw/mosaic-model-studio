@@ -89,11 +89,6 @@ export function Sidebar({
       <div className="sidebar-bottom">
         <div className="local-note"><Database size={14} /><span>数据保存在<br />此浏览器</span></div>
         <button className="help-link" type="button"><CircleHelp size={15} />帮助与快捷键</button>
-        <div className="user-row">
-          <div className="user-avatar">YC</div>
-          <span><strong>Yours truly</strong><small>Local workspace</small></span>
-          <button className="icon-button subtle" type="button" aria-label="更多用户选项"><ChevronDown size={14} /></button>
-        </div>
       </div>
     </aside>
   )

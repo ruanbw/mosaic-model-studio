@@ -53,6 +53,7 @@ export function PromptComposer({
           onKeyDown={handleKeyDown}
           placeholder="描述你想看到的页面、交互和氛围…"
           rows={5}
+          maxLength={4000}
           aria-label="页面提示词"
         />
         <div className="prompt-surface-footer">
