@@ -1,3 +1,5 @@
+import type { GeneratedProject } from './project/types'
+
 export type ProviderKind = 'openai' | 'anthropic' | 'gemini' | 'openai-compatible'
 
 export type AppView = 'studio' | 'providers' | 'settings'
@@ -34,6 +36,8 @@ export interface GenerationResult {
   model: string
   accent: string
   status: GenerationStatus
+  project?: GeneratedProject
+  /** Compatibility preview for static and legacy results. */
   html?: string
   raw?: string
   error?: string

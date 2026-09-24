@@ -1,47 +1,43 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { GoogleGenAI } from '@google/genai'
-import DOMPurify from 'dompurify'
 import OpenAI from 'openai'
-import { PAGE_GENERATION_SYSTEM_PROMPT } from './prompts'
+import { normalizeGeneratedProject } from './project/normalize'
+import type { GenerationOutput } from './project/types'
+import { PROJECT_GENERATION_SYSTEM_PROMPT } from './prompts'
 import type { Provider } from './types'
 
-export interface GenerationOutput {
-  raw: string
-  html: string
-}
+export type { GenerationOutput } from './project/types'
 
 export interface GenerationOptions {
   signal?: AbortSignal
 }
 
+const PROJECT_JSON_SCHEMA = {
+  type: 'object' as const,
+  additionalProperties: false as const,
+  properties: {
+    schemaVersion: { type: 'integer', enum: [1] },
+    title: { type: 'string' },
+    summary: { type: 'string' },
+    files: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 32,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          path: { type: 'string' },
+          content: { type: 'string' },
+        },
+        required: ['path', 'content'],
+      },
+    },
+  },
+  required: ['schemaVersion', 'title', 'summary', 'files'],
+}
+
 const getBaseUrl = (provider: Provider) => provider.baseUrl?.trim() || undefined
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;')
-
-const unwrapCodeFence = (value: string) => {
-  const fenced = value.match(/```(?:html)?\s*([\s\S]*?)```/i)
-  return (fenced?.[1] ?? value).trim()
-}
-
-export const toPreviewDocument = (value: string): string => {
-  const candidate = unwrapCodeFence(value)
-  const htmlStart = candidate.search(/<(?:!doctype|html|head|body|main|section|div)\b/i)
-  const focused = htmlStart > 0 ? candidate.slice(htmlStart) : candidate
-  const document = /<(?:!doctype|html|body|main|section|div)\b/i.test(focused)
-    ? focused
-    : `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mosaic preview</title></head><body><pre>${escapeHtml(focused)}</pre></body></html>`
-
-  return DOMPurify.sanitize(document, {
-    WHOLE_DOCUMENT: true,
-    USE_PROFILES: { html: true },
-  })
-}
 
 const assertApiKey = (provider: Provider) => {
   if (!provider.apiKey.trim()) throw new Error(`${provider.name} 尚未配置 API Key`)
@@ -117,6 +113,22 @@ export const fetchProviderModels = async (
   return uniqueModels
 }
 
+type OpenAIChoice = NonNullable<OpenAI.Chat.Completions.ChatCompletion['choices']>[number]
+
+const assertOpenAICompletion = (choice: OpenAIChoice | undefined) => {
+  if (!choice) throw new Error('模型没有返回候选结果')
+  if (choice.finish_reason === 'length') throw new Error('模型输出达到 token 上限，项目 JSON 不完整')
+  if (choice.finish_reason === 'content_filter') throw new Error('模型因安全策略拒绝了本次生成')
+  if (choice.message.refusal?.trim()) throw new Error(`模型拒绝了本次生成：${choice.message.refusal.trim()}`)
+}
+
+const isResponseFormatUnsupported = (error: unknown) => {
+  if (!(error instanceof Error)) return false
+  const candidate = error as Error & { status?: number }
+  if (![400, 404, 422].includes(candidate.status ?? 0)) return false
+  return /response.?format|json.?mode|output.?config|json.?schema|structured.?output|unsupported|unexpected.?keyword/i.test(candidate.message)
+}
+
 const generateWithOpenAICompatible = async (
   provider: Provider,
   model: string,
@@ -124,19 +136,45 @@ const generateWithOpenAICompatible = async (
   options: GenerationOptions,
 ): Promise<GenerationOutput> => {
   const client = createOpenAIClient(provider)
-  const response = await client.chat.completions.create(
-    {
-      model,
-      messages: [
-        { role: 'system', content: PAGE_GENERATION_SYSTEM_PROMPT },
-        { role: 'user', content: prompt },
-      ],
-    },
-    { signal: options.signal },
-  )
-  const raw = response.choices[0]?.message.content ?? ''
+  const messages = [
+    { role: 'system' as const, content: PROJECT_GENERATION_SYSTEM_PROMPT },
+    { role: 'user' as const, content: prompt },
+  ]
+  const request = {
+    model,
+    messages,
+    ...(provider.kind === 'openai'
+      ? {
+          response_format: {
+            type: 'json_schema' as const,
+            json_schema: {
+              name: 'generated_project',
+              strict: true,
+              schema: PROJECT_JSON_SCHEMA,
+            },
+          },
+        }
+      : { response_format: { type: 'json_object' as const } }),
+  }
+
+  let response
+  try {
+    response = await client.chat.completions.create(request, { signal: options.signal })
+  } catch (error) {
+    if (provider.kind !== 'openai-compatible' || !isResponseFormatUnsupported(error)) throw error
+    // Older OpenAI-compatible gateways may not implement JSON mode. In that case,
+    // request plain text and rely on the host's fenced-JSON normalizer.
+    response = await client.chat.completions.create(
+      { model, messages },
+      { signal: options.signal },
+    )
+  }
+
+  const choice = response.choices[0]
+  assertOpenAICompletion(choice)
+  const raw = choice?.message.content ?? ''
   if (!raw.trim()) throw new Error('模型返回了空内容')
-  return { raw, html: toPreviewDocument(raw) }
+  return normalizeGeneratedProject(raw, model)
 }
 
 const generateWithAnthropic = async (
@@ -146,21 +184,39 @@ const generateWithAnthropic = async (
   options: GenerationOptions,
 ): Promise<GenerationOutput> => {
   const client = createAnthropicClient(provider)
-  const response = await client.messages.create(
-    {
-      model,
-      max_tokens: 8192,
-      system: PAGE_GENERATION_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: prompt }],
-    },
-    { signal: options.signal },
-  )
+  const baseRequest = {
+    model,
+    max_tokens: 16_384,
+    system: PROJECT_GENERATION_SYSTEM_PROMPT,
+    messages: [{ role: 'user' as const, content: prompt }],
+  }
+  let response
+  try {
+    response = await client.messages.create(
+      {
+        ...baseRequest,
+        output_config: {
+          format: {
+            type: 'json_schema',
+            schema: PROJECT_JSON_SCHEMA,
+          },
+        },
+      },
+      { signal: options.signal },
+    )
+  } catch (error) {
+    if (!isResponseFormatUnsupported(error)) throw error
+    response = await client.messages.create(baseRequest, { signal: options.signal })
+  }
+  if (response.stop_reason === 'max_tokens') throw new Error('模型输出达到 token 上限，项目 JSON 不完整')
+  if (response.stop_reason === 'refusal') throw new Error('模型拒绝了本次生成')
+
   const raw = response.content
     .filter((block) => block.type === 'text')
     .map((block) => block.text)
     .join('')
   if (!raw.trim()) throw new Error('模型返回了空内容')
-  return { raw, html: toPreviewDocument(raw) }
+  return normalizeGeneratedProject(raw, model)
 }
 
 const generateWithGemini = async (
@@ -175,12 +231,26 @@ const generateWithGemini = async (
     model,
     contents: prompt,
     config: {
-      systemInstruction: PAGE_GENERATION_SYSTEM_PROMPT,
+      systemInstruction: PROJECT_GENERATION_SYSTEM_PROMPT,
+      responseMimeType: 'application/json',
+      responseJsonSchema: PROJECT_JSON_SCHEMA,
+      maxOutputTokens: 16_384,
+      abortSignal: options.signal,
     },
   })
+
+  if (response.promptFeedback?.blockReason) {
+    throw new Error(`模型因安全策略拒绝了本次生成（${response.promptFeedback.blockReason}）`)
+  }
+  const finishReason = response.candidates?.[0]?.finishReason
+  if (finishReason === 'MAX_TOKENS') throw new Error('模型输出达到 token 上限，项目 JSON 不完整')
+  if (finishReason && !['STOP', 'FINISH_REASON_UNSPECIFIED'].includes(finishReason)) {
+    throw new Error(`模型未完成项目生成（${finishReason}）`)
+  }
+
   const raw = response.text ?? ''
   if (!raw.trim()) throw new Error('模型返回了空内容')
-  return { raw, html: toPreviewDocument(raw) }
+  return normalizeGeneratedProject(raw, model)
 }
 
 export const generateWithProvider = async (
