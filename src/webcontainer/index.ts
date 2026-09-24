@@ -8,6 +8,9 @@ const PROJECT_ROOT = '/project'
 const INSTALL_TIMEOUT_MS = 180_000
 const START_TIMEOUT_MS = 45_000
 const BOOT_TIMEOUT_MS = 45_000
+const PROJECT_MOUNT_TIMEOUT_MS = 15_000
+const PROJECT_CLEANUP_TIMEOUT_MS = 5_000
+const PROCESS_CLEANUP_TIMEOUT_MS = 1_000
 const MAX_LOG_ENTRIES = 200
 const MAX_LOG_LENGTH = 2_000
 
@@ -29,6 +32,20 @@ class BootTimeoutError extends Error {
   constructor() {
     super('WebContainer boot timed out after 45 seconds')
     this.name = 'BootTimeoutError'
+  }
+}
+
+class ProjectMountTimeoutError extends Error {
+  constructor() {
+    super('Project filesystem transition timed out after 15 seconds')
+    this.name = 'ProjectMountTimeoutError'
+  }
+}
+
+class ProjectCleanupTimeoutError extends Error {
+  constructor() {
+    super('WebContainer cleanup timed out after 5 seconds')
+    this.name = 'ProjectCleanupTimeoutError'
   }
 }
 
@@ -114,6 +131,15 @@ function createTimeout(message: string | Error, timeoutMs: number): { promise: P
   return { promise, cancel: () => clearTimeout(timer) }
 }
 
+async function withTimeout<T>(operation: Promise<T>, timeoutMs: number, message: string | Error): Promise<T> {
+  const timeout = createTimeout(message, timeoutMs)
+  try {
+    return await Promise.race([operation, timeout.promise])
+  } finally {
+    timeout.cancel()
+  }
+}
+
 export class WebContainerManager {
   private state: WebContainerState = { phase: 'idle', logs: [] }
   private readonly listeners = new Set<() => void>()
@@ -124,7 +150,6 @@ export class WebContainerManager {
   private operation: Promise<void> = Promise.resolve()
   private currentProcess: WebContainerProcess | undefined
   private currentOutputReader: ReadableStreamDefaultReader<string> | undefined
-  private lastProjectId: string | undefined
   private epoch = 0
   private disposed = false
   private activeProjectId: string | undefined
@@ -177,10 +202,8 @@ export class WebContainerManager {
         this.publishIfCurrent(activationEpoch, { phase: 'mounting', projectId, logs: [] })
         await this.stopCurrentProcess()
         if (!this.isCurrent(activationEpoch)) throw new StaleActivationError()
-        await container.fs.rm(PROJECT_ROOT, { recursive: true, force: true })
-        await container.fs.mkdir(PROJECT_ROOT, { recursive: true })
         const runtimeFiles = createProjectRuntimeFiles(project)
-        await container.mount(toFileSystemTree(runtimeFiles), { mountPoint: PROJECT_ROOT })
+        await this.replaceProjectFiles(container, toFileSystemTree(runtimeFiles), activationEpoch)
         if (!this.isCurrent(activationEpoch)) throw new StaleActivationError()
 
         if (project.kind !== 'web') {
@@ -227,14 +250,15 @@ export class WebContainerManager {
       } catch (error) {
         if (!this.isCurrent(activationEpoch) || error instanceof StaleActivationError) return
         await this.stopCurrentProcess().catch(() => undefined)
+        if (!this.isCurrent(activationEpoch)) return
         this.publish({
           phase: 'error',
           projectId,
           logs: this.state.logs,
           error: errorMessage(error),
         })
-        if (this.activationPromise === run) this.activationPromise = undefined
       } finally {
+        if (this.activationPromise === run) this.activationPromise = undefined
         if (this.operation === run) this.operation = Promise.resolve()
       }
     })
@@ -245,26 +269,24 @@ export class WebContainerManager {
   }
 
   stop(): Promise<void> {
-    if (this.disposed) return Promise.resolve()
+    if (this.disposed || (this.state.phase === 'idle' && !this.activeProjectId)) return Promise.resolve()
     const stopEpoch = ++this.epoch
-    this.lastProjectId = this.activeProjectId ?? this.state.projectId
+    const projectId = this.activeProjectId ?? this.state.projectId
     this.activeProjectId = undefined
     this.activationPromise = undefined
     if (this.bootAttempt) this.bootAttempt.abandoned = true
-    this.publish({ phase: 'stopping', projectId: this.lastProjectId, logs: this.state.logs })
+    this.publish({ phase: 'stopping', projectId, logs: this.state.logs })
     void this.stopCurrentProcess()
 
     const run = this.operation.catch(() => undefined).then(async () => {
       try {
         await this.stopCurrentProcess()
-        if (this.container) {
-          await this.container.fs.rm(PROJECT_ROOT, { recursive: true, force: true })
-        }
+        if (this.container) await this.clearProjectFiles(this.container)
       } catch (error) {
         if (!this.isCurrent(stopEpoch)) return
         this.publish({
           phase: 'error',
-          projectId: this.state.projectId,
+          projectId,
           logs: this.state.logs,
           error: errorMessage(error),
         })
@@ -272,7 +294,7 @@ export class WebContainerManager {
       }
 
       if (this.isCurrent(stopEpoch)) {
-        this.publish({ phase: 'idle', projectId: this.lastProjectId, logs: this.state.logs })
+        this.publish({ phase: 'idle', logs: this.state.logs })
       }
     })
 
@@ -284,18 +306,14 @@ export class WebContainerManager {
     if (this.disposed) return
     this.disposed = true
     this.epoch += 1
-    this.lastProjectId = this.activeProjectId ?? this.state.projectId
     this.activeProjectId = undefined
     this.activationPromise = undefined
     if (this.bootAttempt) this.bootAttempt.abandoned = true
     this.bootAttempt = undefined
     void this.stopCurrentProcess().catch(() => undefined)
     this.currentOutputReader = undefined
-    this.containerErrorUnsubscribe?.()
-    this.containerErrorUnsubscribe = undefined
-    this.container?.teardown()
-    this.container = undefined
-    this.publish({ phase: 'idle', projectId: this.lastProjectId, logs: this.state.logs })
+    this.discardContainer()
+    this.publish({ phase: 'idle', logs: this.state.logs })
   }
 
   private async ensureBooted(epoch: number): Promise<WebContainer> {
@@ -308,6 +326,7 @@ export class WebContainerManager {
       const container = await Promise.race([attempt.promise, timeout.promise])
       if (this.disposed || attempt.abandoned || !this.isCurrent(epoch)) throw new StaleActivationError()
       this.container = container
+      if (this.bootAttempt === attempt) this.bootAttempt = undefined
       this.bindContainerError(container)
       return container
     } catch (error) {
@@ -374,6 +393,50 @@ export class WebContainerManager {
       })
       void this.stopCurrentProcess()
     })
+  }
+
+  private async replaceProjectFiles(container: WebContainer, files: FileSystemTree, epoch: number): Promise<void> {
+    const transition = (async () => {
+      await container.fs.rm(PROJECT_ROOT, { recursive: true, force: true })
+      if (!this.isCurrent(epoch)) throw new StaleActivationError()
+      await container.fs.mkdir(PROJECT_ROOT, { recursive: true })
+      if (!this.isCurrent(epoch)) throw new StaleActivationError()
+      await container.mount(files, { mountPoint: PROJECT_ROOT })
+    })()
+
+    try {
+      await withTimeout(transition, PROJECT_MOUNT_TIMEOUT_MS, new ProjectMountTimeoutError())
+    } catch (error) {
+      if (error instanceof ProjectMountTimeoutError) this.discardContainer(container)
+      throw error
+    }
+  }
+
+  private async clearProjectFiles(container: WebContainer): Promise<void> {
+    try {
+      await withTimeout(
+        container.fs.rm(PROJECT_ROOT, { recursive: true, force: true }),
+        PROJECT_CLEANUP_TIMEOUT_MS,
+        new ProjectCleanupTimeoutError(),
+      )
+    } catch (error) {
+      this.discardContainer(container)
+      throw error
+    }
+  }
+
+  private discardContainer(container = this.container): void {
+    if (!container) return
+    if (this.container === container) {
+      this.containerErrorUnsubscribe?.()
+      this.containerErrorUnsubscribe = undefined
+      this.container = undefined
+    }
+    try {
+      container.teardown()
+    } catch {
+      // Teardown is best-effort; the instance is already unusable for new work.
+    }
   }
 
   private async spawn(
@@ -495,14 +558,21 @@ export class WebContainerManager {
       } catch {
         // The process may have exited between reading the state and killing it.
       }
-      await Promise.race([
+      await withTimeout(
         process.exit.catch(() => undefined),
-        new Promise<void>((resolve) => setTimeout(resolve, 1_000)),
-      ])
+        PROCESS_CLEANUP_TIMEOUT_MS,
+        'Process cleanup timed out after 1 second',
+      ).catch(() => undefined)
     }
     const reader = this.currentOutputReader
     this.currentOutputReader = undefined
-    if (reader) await reader.cancel().catch(() => undefined)
+    if (reader) {
+      await withTimeout(
+        reader.cancel().catch(() => undefined),
+        PROCESS_CLEANUP_TIMEOUT_MS,
+        'Process output cleanup timed out after 1 second',
+      ).catch(() => undefined)
+    }
   }
 
   private appendLog(log: string, epoch: number): void {
