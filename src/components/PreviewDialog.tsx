@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useEffect } from 'react'
+import type { MutableRefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useWebContainer } from '../hooks/useWebContainer'
 import type { GenerationResult } from '../types'
@@ -22,6 +23,7 @@ interface PreviewDialogProps {
   result: GenerationResult | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  returnFocusRef?: MutableRefObject<HTMLElement | null>
 }
 
 const phaseKeys: Record<WebContainerPhase, string> = {
@@ -36,7 +38,7 @@ const phaseKeys: Record<WebContainerPhase, string> = {
   unsupported: 'results.web.unsupported',
 }
 
-export function PreviewDialog({ result, open, onOpenChange }: PreviewDialogProps) {
+export function PreviewDialog({ result, open, onOpenChange, returnFocusRef }: PreviewDialogProps) {
   const { t } = useTranslation()
   const project = result?.project
   const webProject = project?.kind === 'web' ? project : undefined
@@ -93,7 +95,15 @@ export function PreviewDialog({ result, open, onOpenChange }: PreviewDialogProps
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[80] bg-[#030507]/85 backdrop-blur-sm" />
-        <Dialog.Content className="fixed inset-5 z-[81] flex min-w-0 flex-col overflow-hidden rounded-[11px] border border-line bg-surface shadow-[0_28px_100px_color-mix(in_srgb,#000_55%,transparent)] max-[580px]:inset-2">
+        <Dialog.Content className="fixed inset-5 z-[81] flex min-w-0 flex-col overflow-hidden rounded-[11px] border border-line bg-surface shadow-[0_28px_100px_color-mix(in_srgb,#000_55%,transparent)] max-[580px]:inset-2" onCloseAutoFocus={(event) => {
+          const opener = returnFocusRef?.current
+          const visible = opener && opener.isConnected && getComputedStyle(opener).display !== 'none' && getComputedStyle(opener).visibility !== 'hidden' && opener.getClientRects().length > 0
+          if (visible) {
+            event.preventDefault()
+            opener.focus()
+            if (returnFocusRef) returnFocusRef.current = null
+          }
+        }}>
           <div className="flex min-h-16 items-center justify-between gap-3 border-b border-line-soft px-4 py-2.5">
             <div className="flex min-w-0 items-center gap-2.5">
               <span className="size-[7px] shrink-0 rounded-full shadow-[0_0_0_3px_color-mix(in_srgb,#fff_3.5%,transparent)]" style={{ background: result?.accent ?? '#8ef0c4' }} />

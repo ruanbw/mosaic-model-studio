@@ -1,4 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog'
+import type { MutableRefObject } from 'react'
 import { Boxes, ChevronDown, CircleHelp, Database, KeyRound, LayoutGrid, Plus, Settings2, Sparkles, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { AppView } from '../types'
@@ -11,6 +12,7 @@ interface SidebarProps {
   onAddProvider: (opener?: HTMLElement) => void
   mobileOpen: boolean
   onMobileOpenChange: (open: boolean) => void
+  returnFocusRef?: MutableRefObject<HTMLElement | null>
 }
 
 interface SidebarContentProps extends Omit<SidebarProps, 'mobileOpen' | 'onMobileOpenChange'> { onClose?: () => void }
@@ -46,11 +48,19 @@ function SidebarContent({ activeView, providerCount, configuredCount, onViewChan
 }
 
 export function Sidebar(props: SidebarProps) {
-  const { activeView, providerCount, configuredCount, onViewChange, onAddProvider, mobileOpen, onMobileOpenChange } = props
+  const { activeView, providerCount, configuredCount, onViewChange, onAddProvider, mobileOpen, onMobileOpenChange, returnFocusRef } = props
   const { t } = useTranslation()
   const contentProps = { activeView, providerCount, configuredCount, onViewChange, onAddProvider }
   return <>
     <aside id="workspace-sidebar-desktop" aria-label={t('nav.workspace')} className="fixed inset-y-0 left-0 z-20 hidden w-[252px] min-w-0 flex-col border-r border-line-soft bg-sidebar px-3.5 py-6 min-[821px]:flex"><SidebarContent {...contentProps} /></aside>
-    <Dialog.Root open={mobileOpen} onOpenChange={onMobileOpenChange}><Dialog.Portal><Dialog.Overlay className="fixed inset-0 z-[50] bg-black/55 backdrop-blur-[1px] min-[821px]:hidden" /><Dialog.Content id="workspace-sidebar" className="fixed inset-y-0 left-0 z-[51] flex w-[min(292px,88vw)] min-w-0 flex-col overflow-y-auto border-r border-line bg-sidebar px-3.5 py-6 shadow-2xl outline-none min-[821px]:hidden"><Dialog.Title className="sr-only">{t('nav.menu')}</Dialog.Title><Dialog.Description className="sr-only">{t('nav.workspace')}</Dialog.Description><SidebarContent {...contentProps} onClose={() => onMobileOpenChange(false)} /></Dialog.Content></Dialog.Portal></Dialog.Root>
+    <Dialog.Root open={mobileOpen} onOpenChange={onMobileOpenChange}><Dialog.Portal><Dialog.Overlay className="fixed inset-0 z-[50] bg-black/55 backdrop-blur-[1px] min-[821px]:hidden" /><Dialog.Content id="workspace-sidebar" className="fixed inset-y-0 left-0 z-[51] flex w-[min(292px,88vw)] min-w-0 flex-col overflow-y-auto border-r border-line bg-sidebar px-3.5 py-6 shadow-2xl outline-none min-[821px]:hidden" onCloseAutoFocus={(event) => {
+    const opener = returnFocusRef?.current
+    const visible = opener && opener.isConnected && getComputedStyle(opener).display !== 'none' && getComputedStyle(opener).visibility !== 'hidden' && opener.getClientRects().length > 0
+    if (visible) {
+      event.preventDefault()
+      opener.focus()
+      if (returnFocusRef) returnFocusRef.current = null
+    }
+  }}><Dialog.Title className="sr-only">{t('nav.menu')}</Dialog.Title><Dialog.Description className="sr-only">{t('nav.workspace')}</Dialog.Description><SidebarContent {...contentProps} onClose={() => onMobileOpenChange(false)} /></Dialog.Content></Dialog.Portal></Dialog.Root>
   </>
 }
