@@ -165,7 +165,7 @@ test('stopping a mocked provider request preserves a cancelled result', async ({
 
     const result = page.getByRole('article').filter({ hasText: 'mock-model' })
     await page.getByRole('button', { name: 'Stop', exact: true }).click()
-    await expect(result.getByText('Cancelled', { exact: true })).toBeVisible()
+    await expect(result.locator('strong').filter({ hasText: 'Cancelled' }).first()).toBeVisible()
     await expect(result.getByRole('button', { name: 'Retry', exact: true })).toBeVisible()
   } finally {
     releaseRequest.resolve()

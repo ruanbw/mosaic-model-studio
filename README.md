@@ -54,7 +54,7 @@ pnpm run build
 pnpm run preview
 ```
 
-`pnpm test` 运行仓库中的 Vitest Node 单元测试（provider URL、请求取消、项目归一化、持久化和表单校验）；`pnpm run typecheck`/`pnpm run typecheck:test` 检查应用与测试相关的 TypeScript，`pnpm run build` 还会验证 Vite 生产构建。当前基线没有提交 `playwright.config.*` 或 E2E spec，因此 `pnpm exec playwright test` 不是本仓库自带的可重复套件；如果集成流水线挂载了 `tests/e2e` 和 Playwright 配置，可运行 `pnpm exec playwright test --project=chromium`，并把真实浏览器、Provider CORS 和 WebContainer 网络条件纳入验收。
+`pnpm test` 运行仓库中的 Vitest Node 单元测试；`pnpm run typecheck`/`pnpm run typecheck:test` 检查应用与测试相关的 TypeScript，`pnpm run build` 验证 Vite 生产构建。仓库还提供 `playwright.config.ts`、`e2e/app.spec.ts` 和 `pnpm test:e2e`，覆盖响应式、主题、Provider Dialog 焦点、demo 静态预览和取消流程；运行前需安装 Chromium，并将真实 Provider CORS、WebContainer 网络和最终部署 URL 纳入 staging 验收。
 
 Vite 的开发服务器和 `preview` 都会返回跨源隔离响应头。WebContainer 首次启动以及 Vite 工程首次安装依赖时需要下载和准备工作，因此交互预览可能比静态页面慢；后续复用同一实例不代表可以绕过网络、浏览器或许可证限制。
 
@@ -138,7 +138,7 @@ Provider 的默认地址如下；origin 不包含路径中的 `/v1` 或 `/v1beta
 
 ## 当前限制与剩余风险
 
-- Vitest 目前是 Node 环境单元测试，不能证明真实浏览器的 CORS、跨源隔离、WebContainer 启动/清理、iframe 行为或 Provider 计费；本基线也没有提交 Playwright E2E 套件。部署验收必须使用支持 WebContainer 的浏览器和最终 URL。
+- Vitest 目前是 Node 环境单元测试；Playwright 已覆盖本地 demo/UI 流程，但仍不能证明真实 Provider CORS、WebContainer 启动/清理、跨源隔离或计费行为。部署验收必须使用支持 WebContainer 的浏览器和最终 URL。
 - Provider SDK 按需 chunk 首次加载可能受网络、CDN 缓存和 MIME 配置影响；Provider 的模型列表、结构化输出兼容性、CORS 白名单、速率限制和服务端默认地址仍由外部服务决定。
 - BYOK key 保存在浏览器 `localStorage` 并直接从浏览器发送；HTTPS、静态 CSP 和 sandbox 都不能把它变成服务端秘密。传输层自动重试与用户重试都可能造成重复请求或费用。
 - 内置 demo 的静态 fixture 是可信本地内容，不能用来证明不可信模型输出已经经过完整归一化；生产 CDN/代理还必须自行保留 COOP/COEP、配置适合主应用和 WebContainer 的 CSP，并在修改后清理缓存。

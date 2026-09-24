@@ -108,7 +108,7 @@ stopping ──cleanup──► idle
 ### WebContainer
 
 - 预览中的“停止”、关闭预览、移除活动结果或启动一批新的生成结果，都会使当前激活失效，终止 npm 进程并清理工程目录，然后回到 `stopping` → `idle`。这是停止运行时，不是撤销已经完成的模型生成。
-- 停止或替换工程后，迟到的安装完成、server-ready 或错误回调不得重新发布旧工程的 URL。重新打开同一工程会发起一次新的激活；当前界面没有单独的“运行时重试”按钮。
+- 停止或替换工程后，迟到的安装完成、server-ready 或错误回调不得重新发布旧工程的 URL。重新打开同一工程会发起一次新的激活；错误或 unsupported 状态提供独立的运行时重试按钮。
 - 同一个 WebContainer 可以被后续工程复用，但同一时刻只允许一个工程、一个依赖安装和一个 Vite server。快速重复打开、停止和重试必须按上述状态机串行验证。
 
 ## 静态 HTML 与 CSP
@@ -152,7 +152,7 @@ Provider API key 会保存在当前浏览器的 `localStorage`，并由浏览器
 
 ## 剩余风险与集成假设
 
-- **测试覆盖边界。** 当前 Vitest 是 Node 环境单元测试，且项目归一化测试 mock 了 DOMPurify；没有提交真实浏览器 E2E。它不能证明 Provider CORS、SDK 动态 chunk、iframe 隔离、COOP/COEP 或 WebContainer 进程清理。Playwright 套件若由集成层提供，必须使用最终部署 URL 和真实 Chromium/网络条件。
+- **测试覆盖边界。** Vitest 仍是 Node 环境单元测试，项目归一化测试对 DOMPurify 使用 mock；仓库已提交 Playwright 配置和本地 demo/UI E2E，但不能证明真实 Provider CORS、SDK 动态 chunk、iframe 隔离、COOP/COEP 或 WebContainer 进程清理。最终部署 URL 仍需使用真实 Chromium/网络条件验证。
 - **外部服务差异。** Provider 的模型列表、结构化输出兼容性、默认地址、CORS 白名单、速率限制和 SDK 版本可能变化；兼容网关不支持 JSON mode 时会退回普通文本再由宿主归一化，失败响应仍可能产生计费。
 - **取消与重复请求。** `AbortController` 是客户端取消信号，不能保证供应商停止处理或撤销费用；SDK 的传输层重试和结果卡重试可能造成重复请求。生产代理需要幂等、限流和审计策略。
 - **部署配置。** `vite.config.ts` 只为本地 dev/preview 设置响应头；最终 HTML、HTTPS、重定向、CDN 缓存和 CSP 由托管方负责。全局 CSP 还必须兼容主应用的 bundle、Provider API、WebContainer iframe 及 `index.html` 的主题初始化脚本。
@@ -212,14 +212,14 @@ pnpm run typecheck:test
 pnpm run build
 ```
 
-`vitest.config.ts` 使用 Node 环境，当前测试覆盖取消错误映射、Provider URL 规则、项目归一化、持久化边界和表单校验；它不会启动真实 Provider、浏览器 iframe 或 WebContainer。当前基线没有 `playwright.config.*`、`tests/e2e` 或已声明的 `@playwright/test` 依赖，因此不要把 `pnpm exec playwright test` 的“no tests found”当成通过。若集成流水线提供浏览器套件，应在安装 Chromium 后运行：
+`vitest.config.ts` 使用 Node 环境；`playwright.config.ts` 和 `e2e/app.spec.ts` 提供本地 Chromium 流程。Vitest 不会启动真实 Provider、浏览器 iframe 或 WebContainer；安装 Chromium 后运行：
 
 ```bash
 pnpm exec playwright install chromium
 pnpm exec playwright test --project=chromium
 ```
 
-该 Playwright 验收至少应在最终部署 URL 检查响应头、`window.crossOriginIsolated`、`SharedArrayBuffer`、静态 iframe 的 sandbox/CSP，以及 WebContainer 的安装、替换和停止；若使用 demo fixture，要单独标记它没有覆盖不可信模型输出的归一化路径。缺少这套真实浏览器验证时，Vitest 通过不能证明跨源隔离、Provider CORS 或运行时清理已经成立。
+该 Playwright 套件覆盖本地响应式、主题、Provider Dialog、demo 静态预览和取消流程；最终部署验收仍应检查响应头、`window.crossOriginIsolated`、`SharedArrayBuffer`、静态 iframe 的 sandbox/CSP，以及 WebContainer 的安装、替换和停止。demo fixture 不覆盖不可信模型输出的完整归一化路径。
 
 ## `VITE_WEBCONTAINER_API_KEY`
 
@@ -301,6 +301,6 @@ VITE_WEBCONTAINER_API_KEY=
 - [ ] 静态预览仍使用 DOMPurify、固定 CSP `meta`、`sandbox=""` 和 `referrerPolicy="no-referrer"`；若部署 CSP，静态与 WebContainer 两条路径均已单独验证，且未把静态策略直接套到主应用。
 - [ ] 构建产物中没有 provider 服务端密钥；浏览器 `localStorage`、Network 面板和源码中的 BYOK 风险已向部署者说明。
 - [ ] 如配置 `VITE_WEBCONTAINER_API_KEY`，确认它是受限客户端 key，并已配置 origin 和配额。
-- [ ] 如集成层提供 Playwright，已运行 `pnpm exec playwright test --project=chromium` 并覆盖最终 URL、隔离状态、静态 CSP 和 WebContainer 生命周期；否则明确记录该缺口。
+- [ ] 已运行 `pnpm test:e2e` 并覆盖本地响应式、主题、Provider Dialog、demo 预览和取消流程；最终 URL 的隔离状态、Provider CORS 和 WebContainer 生命周期另行记录。
 - [ ] 不将 WebContainer 用作生产 API、数据库或密钥保管服务。
 - [ ] 正式商业生产前已根据 [StackBlitz WebContainer Enterprise](https://webcontainers.io/enterprise) 确认并取得所需商业许可。
