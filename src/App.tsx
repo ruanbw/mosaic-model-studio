@@ -45,6 +45,10 @@ interface ActiveGeneration {
 
 const modelKey = (providerId: string, model: string) => `${providerId}::${model}`
 const parseModelIds = (value: string) => [...new Set(value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean))]
+const isEditableTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false
+  return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+}
 
 function App() {
   const { t } = useTranslation()
@@ -105,7 +109,17 @@ function App() {
     }
   }, [cancelActiveGeneration])
   useEffect(() => { if (!demoMode || initialDemoSeeded.current || results.length > 0 || modelOptions.length === 0) return; initialDemoSeeded.current = true; replaceResults(createInitialDemoResults(selectedModels.length > 0 ? selectedModels : modelOptions)) }, [demoMode, modelOptions, replaceResults, results.length, selectedModels])
-  useEffect(() => { const handleShortcut = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setEditingProvider(null); setProviderDialogOpen(true) } }; window.addEventListener('keydown', handleShortcut); return () => window.removeEventListener('keydown', handleShortcut) }, [])
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'k') return
+      if (event.defaultPrevented || isEditableTarget(event.target) || document.querySelector('[role="dialog"]')) return
+      event.preventDefault()
+      setEditingProvider(null)
+      setProviderDialogOpen(true)
+    }
+    window.addEventListener('keydown', handleShortcut)
+    return () => window.removeEventListener('keydown', handleShortcut)
+  }, [])
 
   const generationMutation = useMutation<GenerationResult[], Error, GenerationPayload>({
     mutationFn: async ({ models, providers: generationProviders, prompt: currentPrompt, demoMode: useDemo, signal, token, runId, results }) => {
