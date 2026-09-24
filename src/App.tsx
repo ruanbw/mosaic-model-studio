@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import { nanoid } from 'nanoid'
 import { Activity, ArrowUpRight, ChevronRight, Layers3, Settings2, ShieldCheck, Sparkles, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useShallow } from 'zustand/react/shallow'
@@ -51,9 +51,54 @@ const isEditableTarget = (target: EventTarget | null) => {
   return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
 }
 
+interface StudioPromptProps {
+  selectedCount: number
+  isRunning: boolean
+  onGenerate: () => void
+  onStop: () => void
+  onManageModels: () => void
+}
+
+const StudioPrompt = memo(function StudioPrompt({ selectedCount, isRunning, onGenerate, onStop, onManageModels }: StudioPromptProps) {
+  const prompt = useAppStore((state) => state.prompt)
+  const demoMode = useAppStore((state) => state.demoMode)
+  const setPrompt = useAppStore((state) => state.setPrompt)
+  const setDemoMode = useAppStore((state) => state.setDemoMode)
+  return <PromptComposer prompt={prompt} selectedCount={selectedCount} demoMode={demoMode} isRunning={isRunning} onPromptChange={setPrompt} onDemoModeChange={setDemoMode} onGenerate={onGenerate} onStop={onStop} onManageModels={onManageModels} />
+})
+
+interface StudioResultsProps {
+  modelOptions: ModelOption[]
+  isRunning: boolean
+  onLoadDemo: () => void
+  onSelectModels: () => void
+  onExpand: (result: GenerationResult) => void
+  onRemove: (resultId: string) => void
+  onRetry: (result: GenerationResult) => void
+}
+
+const StudioResults = memo(function StudioResults({ modelOptions, isRunning, onLoadDemo, onSelectModels, onExpand, onRemove, onRetry }: StudioResultsProps) {
+  const { t } = useTranslation()
+  const results = useAppStore((state) => state.results)
+  const demoMode = useAppStore((state) => state.demoMode)
+  return <section className="mt-14" aria-labelledby="results-heading"><div className="mb-4 flex items-center justify-between gap-5 max-[580px]:flex-col max-[580px]:items-start"><div><div className="flex items-center gap-2"><h2 id="results-heading" className="m-0 text-[19px] font-medium tracking-[-0.03em]">{t('results.title')}</h2><span className="min-w-[21px] rounded-md bg-mint/10 px-1.5 py-1 text-center font-mono text-[10px] text-mint">{results.length}</span></div><p className="mt-1.5 mb-0 text-[11px] text-[#6d757c]">{demoMode ? t('results.demo') : t('results.sandbox')}</p></div><div className="flex w-full items-center justify-between gap-4 max-[580px]:w-full"><span className="flex items-center gap-1.5 font-mono text-[9px] text-[#697179]"><Activity size={14} />{t('results.grid')}</span>{results.length > 0 && <button className="inline-flex items-center gap-1.5 py-0.5 text-[10px] text-[#8c9499] transition-colors hover:text-ink" type="button" onClick={onLoadDemo} disabled={isRunning}><Sparkles size={14} />{t('results.reload')}</button>}</div></div>{results.length === 0 ? <EmptyResults onLoadDemo={onLoadDemo} onSelectModels={onSelectModels} hasModels={modelOptions.length > 0} /> : <div className="grid grid-cols-2 gap-[15px] max-[821px]:grid-cols-1">{results.map((result) => <ResultCard key={result.id} result={result} busy={isRunning} onExpand={onExpand} onRemove={onRemove} onRetry={onRetry} />)}</div>}</section>
+})
+
+interface AppSettingsProps {
+  providers: Provider[]
+  selectedCount: number
+  onRestore: () => void
+  onClear: () => void
+}
+
+const AppSettings = memo(function AppSettings({ providers, selectedCount, onRestore, onClear }: AppSettingsProps) {
+  const promptLength = useAppStore((state) => state.prompt.length)
+  return <SettingsView providers={providers} promptLength={promptLength} selectedCount={selectedCount} onRestore={onRestore} onClear={onClear} />
+})
+
 function App() {
   const { t } = useTranslation()
-  const { providers, selectedModelKeys, prompt, demoMode, activeView, results, isRunning, setPrompt, setActiveView, toggleModel, clearModelSelection, addProvider, updateProvider, removeProvider, setDemoMode, setRunning, replaceResults, upsertResult, removeResult, clearResults, clearConfiguration, restoreDefaults } = useAppStore(useShallow((state) => ({ providers: state.providers, selectedModelKeys: state.selectedModelKeys, prompt: state.prompt, demoMode: state.demoMode, activeView: state.activeView, results: state.results, isRunning: state.isRunning, setPrompt: state.setPrompt, setActiveView: state.setActiveView, toggleModel: state.toggleModel, clearModelSelection: state.clearModelSelection, addProvider: state.addProvider, updateProvider: state.updateProvider, removeProvider: state.removeProvider, setDemoMode: state.setDemoMode, setRunning: state.setRunning, replaceResults: state.replaceResults, upsertResult: state.upsertResult, removeResult: state.removeResult, clearResults: state.clearResults, clearConfiguration: state.clearConfiguration, restoreDefaults: state.restoreDefaults })))
+  const { providers, selectedModelKeys, demoMode, activeView, isRunning, setActiveView, toggleModel, clearModelSelection, addProvider, updateProvider, removeProvider, setRunning, replaceResults, upsertResult, removeResult, clearResults, clearConfiguration, restoreDefaults } = useAppStore(useShallow((state) => ({ providers: state.providers, selectedModelKeys: state.selectedModelKeys, demoMode: state.demoMode, activeView: state.activeView, isRunning: state.isRunning, setActiveView: state.setActiveView, toggleModel: state.toggleModel, clearModelSelection: state.clearModelSelection, addProvider: state.addProvider, updateProvider: state.updateProvider, removeProvider: state.removeProvider, setRunning: state.setRunning, replaceResults: state.replaceResults, upsertResult: state.upsertResult, removeResult: state.removeResult, clearResults: state.clearResults, clearConfiguration: state.clearConfiguration, restoreDefaults: state.restoreDefaults })))
   const [providerDialogOpen, setProviderDialogOpen] = useState(false)
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const providerDialogReturnFocusRef = useRef<HTMLElement | null>(null)
@@ -113,7 +158,7 @@ function App() {
       cancelActiveGeneration(false)
     }
   }, [cancelActiveGeneration])
-  useEffect(() => { if (!demoMode || initialDemoSeeded.current || results.length > 0 || modelOptions.length === 0) return; initialDemoSeeded.current = true; replaceResults(createInitialDemoResults(selectedModels.length > 0 ? selectedModels : modelOptions)) }, [demoMode, modelOptions, replaceResults, results.length, selectedModels])
+  useEffect(() => { if (!demoMode || initialDemoSeeded.current || useAppStore.getState().results.length > 0 || modelOptions.length === 0) return; initialDemoSeeded.current = true; replaceResults(createInitialDemoResults(selectedModels.length > 0 ? selectedModels : modelOptions)) }, [demoMode, modelOptions, replaceResults, selectedModels])
   useEffect(() => {
     const rememberFocus = (event: FocusEvent) => {
       if (event.target instanceof HTMLElement && !event.target.closest('[role="dialog"]')) lastFocusedElementRef.current = event.target
@@ -232,8 +277,8 @@ function App() {
     },
   })
 
-  const startGeneration = (models: ModelOption[], currentPrompt = prompt, useDemo = demoMode, preserveResults = false): boolean => {
-    if (isRunning || activeGenerationRef.current) return false
+  const startGeneration = (models: ModelOption[], currentPrompt = useAppStore.getState().prompt, useDemo = useAppStore.getState().demoMode, preserveResults = false): boolean => {
+    if (useAppStore.getState().isRunning || activeGenerationRef.current) return false
     if (!currentPrompt.trim()) { toast.error(t('prompt.empty')); return false }
     if (models.length === 0) { toast.error(t('models.none')); return false }
 
@@ -289,7 +334,8 @@ function App() {
   const handleRetry = (result: GenerationResult) => {
     const model = modelOptions.find((item) => item.providerId === result.providerId && item.model === result.model)
     if (!model) { toast.error(t('models.removed')); return }
-    if (startGeneration([model], result.inputPrompt ?? prompt, result.inputDemoMode ?? demoMode, true)) handleRemoveResult(result.id)
+    const latest = useAppStore.getState()
+    if (startGeneration([model], result.inputPrompt ?? latest.prompt, result.inputDemoMode ?? latest.demoMode, true)) handleRemoveResult(result.id)
   }
   const openAddProvider = (opener?: HTMLElement) => { providerDialogReturnFocusRef.current = opener ?? captureProviderDialogOpener(); setEditingProvider(null); setProviderDialogOpen(true); setMobileSidebarOpen(false) }
   const openEditProvider = (provider: Provider, opener?: HTMLElement) => { providerDialogReturnFocusRef.current = opener ?? captureProviderDialogOpener(); setEditingProvider(provider); setProviderDialogOpen(true) }
@@ -315,12 +361,12 @@ function App() {
     <div className="w-[252px] flex-none max-[821px]:w-0"><Sidebar activeView={activeView} providerCount={providers.length} configuredCount={providers.filter((provider) => provider.apiKey.trim()).length} onViewChange={handleViewChange} onAddProvider={openAddProvider} mobileOpen={mobileSidebarOpen} onMobileOpenChange={setMobileSidebarOpen} returnFocusRef={mobileSidebarReturnFocusRef} /></div>
     <main className="min-w-0 flex-1 bg-canvas"><header className="flex h-[72px] items-center justify-between border-b border-line-soft bg-canvas px-9 max-[821px]:h-16 max-[821px]:px-5 max-[580px]:px-[15px]"><div className="flex items-center"><button className="mr-2.5 hidden size-7 place-items-center rounded-md text-[#737b82] transition-colors hover:bg-surface-hover hover:text-ink max-[821px]:mr-2.5 max-[821px]:grid" type="button" aria-label={t('nav.menu')} aria-haspopup="dialog" aria-expanded={mobileSidebarOpen} aria-controls={mobileSidebarOpen ? 'workspace-sidebar' : undefined} onClick={(event) => openMobileSidebar(event.currentTarget)}><Layers3 size={18} /></button><div className="flex items-center gap-2 font-mono text-[11px] text-faint max-[380px]:hidden"><span>{t('nav.workspace')}</span><ChevronRight size={13} /><strong className="font-medium text-ink">{viewTitle[activeView]}</strong></div></div><div className="flex items-center gap-2.5"><div className="mr-1 flex items-center gap-2 font-mono text-[10px] text-[#7d858c] max-[580px]:hidden"><span className="size-1.5 rounded-full bg-mint shadow-[0_0_0_4px_color-mix(in_srgb,var(--mint)_8%,transparent)]" />{t('topbar.local')}</div><ThemePicker /><LanguagePicker /><button className="grid size-7 place-items-center rounded-md text-[#737b82] transition-colors hover:bg-surface-hover hover:text-ink" type="button" onClick={() => toast.info(t('topbar.securityInfo'))} aria-label={t('topbar.security')} title={t('topbar.security')}><ShieldCheck size={17} /></button><button className="grid size-7 place-items-center rounded-md text-[#737b82] transition-colors hover:bg-surface-hover hover:text-ink" type="button" onClick={() => handleViewChange('settings')} aria-label={t('topbar.settings')} title={t('topbar.settings')}><Settings2 size={17} /></button></div></header>
       {activeView === 'studio' && <div className="mx-auto w-full max-w-[1320px] px-11 pb-20 pt-[52px] max-[1080px]:px-[30px] max-[580px]:px-[15px] max-[580px]:pt-8"><div className="mb-[43px] flex items-end justify-between gap-7 max-[821px]:flex-col max-[821px]:items-start"><div><div className="flex items-center gap-2 font-mono text-[10px] tracking-[0.13em] text-mint"><span className="h-px w-6 bg-mint" />{t('studio.kicker')}</div><h1 className="my-4 max-w-[700px] text-[clamp(34px,4.2vw,56px)] font-medium leading-[1.05] tracking-[-0.065em]">{t('studio.title')}<em className="not-italic text-mint">{t('studio.titleAccent')}</em></h1><p className="m-0 text-sm text-muted">{t('studio.subtitle')}</p></div><div className="flex min-w-[220px] items-center gap-2.5 rounded-[9px] border border-line bg-surface-soft p-3 text-muted max-[821px]:w-full max-[821px]:max-w-[300px]"><div className="grid size-8 place-items-center rounded-lg bg-mint/10 text-mint"><Sparkles size={18} /></div><div className="flex flex-1 flex-col gap-0.5"><strong className="text-[11px] font-semibold text-ink">{t('studio.canvas')}</strong><span className="font-mono text-[10px] text-faint">{t('studio.start')}</span></div><ArrowUpRight className="text-[#606870]" size={16} /></div></div>
-        <PromptComposer prompt={prompt} selectedCount={selectedModels.length} demoMode={demoMode} isRunning={isRunning} onPromptChange={setPrompt} onDemoModeChange={setDemoMode} onGenerate={handleGenerate} onStop={stopGeneration} onManageModels={() => handleViewChange('providers')} />
+        <StudioPrompt selectedCount={selectedModels.length} isRunning={isRunning} onGenerate={handleGenerate} onStop={stopGeneration} onManageModels={() => handleViewChange('providers')} />
         <div className="mt-8 flex flex-wrap items-center gap-4 rounded-[9px] border border-line-soft bg-surface-soft p-3.5 max-[580px]:flex-col max-[580px]:items-stretch"><div className="flex min-w-[145px] flex-col gap-0.5 max-[580px]:w-full max-[580px]:flex-row max-[580px]:items-center max-[580px]:justify-between"><div><span className="eyebrow mb-0.5 block font-mono text-[9px] uppercase tracking-[0.12em] text-faint">MODEL SET</span><strong className="text-xs font-medium">{selectedModels.length > 0 ? t('models.target') : t('models.none')}</strong></div><span className="font-mono text-[9px] text-faint">{selectedModels.length > 0 ? t('models.parallel', { count: selectedModels.length }) : t('models.multi')}</span></div><div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 max-[580px]:order-3 max-[580px]:w-full max-[580px]:flex-basis-full">{selectedModels.length > 0 ? selectedModels.map((model) => <button className="flex max-w-[220px] items-center gap-1.5 rounded-md border border-[#30363e] bg-[#20242a] px-2 py-1.5 font-mono text-[10px] text-[#aeb5b6] transition-colors hover:border-red/35 hover:text-red" type="button" key={model.key} onClick={() => toggleModel(model.key)} title={t('results.remove')}><span className="size-[7px] shrink-0 rounded-full" style={{ background: model.accent }} /><span className="truncate">{model.model}</span><X className="text-[#737b82]" size={13} /></button>) : <span className="text-[11px] text-faint">{t('models.start')}</span>}</div><div className="ml-auto max-[580px]:ml-0 max-[580px]:w-full"><ModelPicker models={modelOptions} selectedKeys={selectedModels.map((model) => model.key)} onToggle={toggleModel} onClear={clearModelSelection} onManage={() => handleViewChange('providers')} /></div></div>
-        <section className="mt-14" aria-labelledby="results-heading"><div className="mb-4 flex items-center justify-between gap-5 max-[580px]:flex-col max-[580px]:items-start"><div><div className="flex items-center gap-2"><h2 id="results-heading" className="m-0 text-[19px] font-medium tracking-[-0.03em]">{t('results.title')}</h2><span className="min-w-[21px] rounded-md bg-mint/10 px-1.5 py-1 text-center font-mono text-[10px] text-mint">{results.length}</span></div><p className="mt-1.5 mb-0 text-[11px] text-[#6d757c]">{demoMode ? t('results.demo') : t('results.sandbox')}</p></div><div className="flex w-full items-center justify-between gap-4 max-[580px]:w-full"><span className="flex items-center gap-1.5 font-mono text-[9px] text-[#697179]"><Activity size={14} />{t('results.grid')}</span>{results.length > 0 && <button className="inline-flex items-center gap-1.5 py-0.5 text-[10px] text-[#8c9499] transition-colors hover:text-ink" type="button" onClick={loadDemo} disabled={isRunning}><Sparkles size={14} />{t('results.reload')}</button>}</div></div>{results.length === 0 ? <EmptyResults onLoadDemo={loadDemo} onSelectModels={() => handleViewChange('providers')} /> : <div className="grid grid-cols-2 gap-[15px] max-[821px]:grid-cols-1">{results.map((result) => <ResultCard key={result.id} result={result} busy={isRunning} onExpand={openPreview} onRemove={handleRemoveResult} onRetry={handleRetry} />)}</div>}</section>
+        <StudioResults modelOptions={modelOptions} isRunning={isRunning} onLoadDemo={loadDemo} onSelectModels={() => handleViewChange('providers')} onExpand={openPreview} onRemove={handleRemoveResult} onRetry={handleRetry} />
       </div>}
       {activeView === 'providers' && <ProvidersView providers={providers} onAdd={openAddProvider} onEdit={openEditProvider} onDelete={handleDeleteProvider} />}
-      {activeView === 'settings' && <SettingsView providers={providers} promptLength={prompt.length} selectedCount={selectedModels.length} onRestore={handleRestore} onClear={handleClear} />}
+      {activeView === 'settings' && <AppSettings providers={providers} selectedCount={selectedModels.length} onRestore={handleRestore} onClear={handleClear} />}
     </main>
     <ProviderDialog open={providerDialogOpen} onOpenChange={setProviderDialogOpen} provider={editingProvider} onSave={handleSaveProvider} onDelete={handleDeleteProvider} returnFocusRef={providerDialogReturnFocusRef} /><PreviewDialog result={previewResult} open={Boolean(previewResult)} onOpenChange={(open) => { if (!open) setPreviewResult(null) }} returnFocusRef={previewReturnFocusRef} />
   </div>
