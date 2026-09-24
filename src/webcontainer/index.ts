@@ -11,6 +11,9 @@ const BOOT_TIMEOUT_MS = 45_000
 const PROJECT_MOUNT_TIMEOUT_MS = 15_000
 const PROJECT_CLEANUP_TIMEOUT_MS = 5_000
 const PROCESS_CLEANUP_TIMEOUT_MS = 1_000
+const PROCESS_SPAWN_TIMEOUT_MS = 15_000
+const LOG_FLUSH_INTERVAL_MS = 100
+const LOG_BATCH_SIZE = 20
 const MAX_LOG_ENTRIES = 200
 const MAX_LOG_LENGTH = 2_000
 
@@ -46,6 +49,13 @@ class ProjectCleanupTimeoutError extends Error {
   constructor() {
     super('WebContainer cleanup timed out after 5 seconds')
     this.name = 'ProjectCleanupTimeoutError'
+  }
+}
+
+class ProcessSpawnTimeoutError extends Error {
+  constructor() {
+    super('WebContainer process spawn timed out after 15 seconds')
+    this.name = 'ProcessSpawnTimeoutError'
   }
 }
 
@@ -97,7 +107,11 @@ function toFileSystemTree(files: Record<string, string>): FileSystemTree {
 }
 
 function errorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error)
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === 'object' && error !== null && 'message' in error
+      ? String(error.message)
+      : String(error)
   return message.replace(/[\r\n]+/g, ' ').slice(0, MAX_LOG_LENGTH)
 }
 
@@ -140,6 +154,16 @@ async function withTimeout<T>(operation: Promise<T>, timeoutMs: number, message:
   }
 }
 
+function createInvalidation(signal: AbortSignal): { promise: Promise<never>; cancel: () => void } {
+  let onAbort: () => void = () => undefined
+  const promise = new Promise<never>((_, reject) => {
+    onAbort = () => reject(new StaleActivationError())
+    if (signal.aborted) onAbort()
+    else signal.addEventListener('abort', onAbort, { once: true })
+  })
+  return { promise, cancel: () => signal.removeEventListener('abort', onAbort) }
+}
+
 export class WebContainerManager {
   private state: WebContainerState = { phase: 'idle', logs: [] }
   private readonly listeners = new Set<() => void>()
@@ -150,10 +174,14 @@ export class WebContainerManager {
   private operation: Promise<void> = Promise.resolve()
   private currentProcess: WebContainerProcess | undefined
   private currentOutputReader: ReadableStreamDefaultReader<string> | undefined
+  private pendingLogs: string[] = []
+  private pendingLogEpoch: number | undefined
+  private logFlushTimer: ReturnType<typeof setTimeout> | undefined
   private epoch = 0
   private disposed = false
   private activeProjectId: string | undefined
   private activationPromise: Promise<void> | undefined
+  private activationAbortController: AbortController | undefined
 
   getState(): WebContainerState {
     return this.state
@@ -175,7 +203,11 @@ export class WebContainerManager {
     if (this.activeProjectId === projectId && this.activationPromise) return this.activationPromise
     if (this.activeProjectId === projectId && this.state.phase === 'ready') return Promise.resolve()
 
+    this.activationAbortController?.abort()
+    const activationAbortController = new AbortController()
+    this.activationAbortController = activationAbortController
     const activationEpoch = ++this.epoch
+    this.clearPendingLogs()
     if (!this.container && this.bootAttempt) this.bootAttempt.abandoned = true
     this.activeProjectId = projectId
     this.publish({ phase: 'booting', projectId, logs: [] })
@@ -187,6 +219,7 @@ export class WebContainerManager {
       try {
         if (!this.isCurrent(activationEpoch)) throw new StaleActivationError()
         if (!isSupportedEnvironment()) {
+          if (this.activeProjectId === projectId) this.activeProjectId = undefined
           this.publishIfCurrent(activationEpoch, {
             phase: 'unsupported',
             projectId,
@@ -224,6 +257,7 @@ export class WebContainerManager {
           activationEpoch,
           INSTALL_TIMEOUT_MS,
           'Dependency installation timed out after 180 seconds',
+          activationAbortController.signal,
         )
         if (installExit !== 0) throw new Error(`Dependency installation failed with exit code ${installExit}`)
         if (!this.isCurrent(activationEpoch)) throw new StaleActivationError()
@@ -238,7 +272,12 @@ export class WebContainerManager {
             activationEpoch,
           )
           this.publishIfCurrent(activationEpoch, { phase: 'starting', projectId, logs: this.state.logs })
-          const previewUrl = await this.waitForStart(readySubscription.promise, dev, activationEpoch)
+          const previewUrl = await this.waitForStart(
+            readySubscription.promise,
+            dev,
+            activationEpoch,
+            activationAbortController.signal,
+          )
           this.publishIfCurrent(activationEpoch, { phase: 'ready', projectId, previewUrl, logs: this.state.logs })
           void dev.exit.then(
             (code) => this.handleUnexpectedExit(dev, code, activationEpoch),
@@ -251,6 +290,9 @@ export class WebContainerManager {
         if (!this.isCurrent(activationEpoch) || error instanceof StaleActivationError) return
         await this.stopCurrentProcess().catch(() => undefined)
         if (!this.isCurrent(activationEpoch)) return
+        this.flushLogs(activationEpoch)
+        if (!this.isCurrent(activationEpoch)) return
+        if (this.activeProjectId === projectId) this.activeProjectId = undefined
         this.publish({
           phase: 'error',
           projectId,
@@ -259,6 +301,9 @@ export class WebContainerManager {
         })
       } finally {
         if (this.activationPromise === run) this.activationPromise = undefined
+        if (this.activationAbortController === activationAbortController) {
+          this.activationAbortController = undefined
+        }
         if (this.operation === run) this.operation = Promise.resolve()
       }
     })
@@ -270,6 +315,9 @@ export class WebContainerManager {
 
   stop(): Promise<void> {
     if (this.disposed || (this.state.phase === 'idle' && !this.activeProjectId)) return Promise.resolve()
+    this.flushLogs()
+    this.activationAbortController?.abort()
+    this.activationAbortController = undefined
     const stopEpoch = ++this.epoch
     const projectId = this.activeProjectId ?? this.state.projectId
     this.activeProjectId = undefined
@@ -304,10 +352,13 @@ export class WebContainerManager {
 
   dispose(): void {
     if (this.disposed) return
+    this.flushLogs()
     this.disposed = true
     this.epoch += 1
     this.activeProjectId = undefined
     this.activationPromise = undefined
+    this.activationAbortController?.abort()
+    this.activationAbortController = undefined
     if (this.bootAttempt) this.bootAttempt.abandoned = true
     this.bootAttempt = undefined
     void this.stopCurrentProcess().catch(() => undefined)
@@ -383,15 +434,22 @@ export class WebContainerManager {
     this.containerErrorUnsubscribe?.()
     this.containerErrorUnsubscribe = container.on('error', (error) => {
       if (this.disposed || this.container !== container || this.state.phase === 'stopping' || this.state.phase === 'idle') return
+      const errorEpoch = this.epoch
+      this.flushLogs()
+      if (!this.isCurrent(errorEpoch) || this.container !== container) return
+      this.activationAbortController?.abort()
+      this.activationAbortController = undefined
       this.epoch += 1
       this.activationPromise = undefined
+      this.activeProjectId = undefined
+      this.discardContainer(container)
+      void this.stopCurrentProcess()
       this.publish({
         phase: 'error',
         projectId: this.state.projectId,
         logs: this.state.logs,
         error: errorMessage(error),
       })
-      void this.stopCurrentProcess()
     })
   }
 
@@ -447,9 +505,20 @@ export class WebContainerManager {
     epoch: number,
   ): Promise<WebContainerProcess> {
     if (!this.isCurrent(epoch)) throw new StaleActivationError()
-    const process = await container.spawn(command, args, { cwd: PROJECT_ROOT })
+    const spawnOperation = container.spawn(command, args, { cwd: PROJECT_ROOT })
+    let process: WebContainerProcess
+    try {
+      process = await withTimeout(spawnOperation, PROCESS_SPAWN_TIMEOUT_MS, new ProcessSpawnTimeoutError())
+    } catch (error) {
+      if (error instanceof ProcessSpawnTimeoutError) this.discardContainer(container)
+      void spawnOperation.then(
+        (lateProcess) => this.killProcess(lateProcess),
+        () => undefined,
+      )
+      throw error
+    }
     if (!this.isCurrent(epoch)) {
-      process.kill()
+      this.killProcess(process)
       throw new StaleActivationError()
     }
     this.currentProcess = process
@@ -466,7 +535,7 @@ export class WebContainerManager {
       pending += text
       const lines = pending.split(/\r\n|\n|\r/)
       pending = lines.pop() ?? ''
-      for (const line of lines) this.appendLog(`[${phase}] ${sanitizeLogLine(line)}`, epoch)
+      for (const line of lines) this.appendLog(line, phase, epoch)
     }
 
     try {
@@ -475,7 +544,7 @@ export class WebContainerManager {
         if (done) break
         addLines(value)
       }
-      if (pending) this.appendLog(`[${phase}] ${sanitizeLogLine(pending)}`, epoch)
+      if (pending) this.appendLog(pending, phase, epoch)
     } catch {
       // Killing a process closes its output stream; the epoch prevents stale output from being published.
     } finally {
@@ -488,16 +557,19 @@ export class WebContainerManager {
     epoch: number,
     timeoutMs: number,
     timeoutMessage: string,
+    signal: AbortSignal,
   ): Promise<number> {
     const timeout = createTimeout(timeoutMessage, timeoutMs)
+    const invalidation = createInvalidation(signal)
     try {
-      const result = await Promise.race([process.exit, timeout.promise])
+      const result = await Promise.race([process.exit, timeout.promise, invalidation.promise])
       if (!this.isCurrent(epoch)) throw new StaleActivationError()
       return result
     } catch (error) {
-      process.kill()
+      this.killProcess(process)
       throw error
     } finally {
+      invalidation.cancel()
       timeout.cancel()
     }
   }
@@ -517,20 +589,27 @@ export class WebContainerManager {
     return { promise, dispose: () => unsubscribe() }
   }
 
-  private async waitForStart(readyPromise: Promise<string>, process: WebContainerProcess, epoch: number): Promise<string> {
+  private async waitForStart(
+    readyPromise: Promise<string>,
+    process: WebContainerProcess,
+    epoch: number,
+    signal: AbortSignal,
+  ): Promise<string> {
     const timeout = createTimeout('Development server did not become ready within 45 seconds', START_TIMEOUT_MS)
+    const invalidation = createInvalidation(signal)
     const exited = process.exit.then((code) => {
       throw new Error(`Development server exited before becoming ready (exit code ${code})`)
     })
 
     try {
-      const result = await Promise.race([readyPromise, exited, timeout.promise])
+      const result = await Promise.race([readyPromise, exited, timeout.promise, invalidation.promise])
       if (!this.isCurrent(epoch)) throw new StaleActivationError()
       return validatePreviewUrl(result)
     } catch (error) {
-      process.kill()
+      this.killProcess(process)
       throw error
     } finally {
+      invalidation.cancel()
       timeout.cancel()
     }
   }
@@ -538,9 +617,12 @@ export class WebContainerManager {
   private handleUnexpectedExit(process: WebContainerProcess, code: number, epoch: number): void {
     if (process !== this.currentProcess || !this.isCurrent(epoch) || this.state.phase === 'stopping') return
     this.currentProcess = undefined
+    this.flushLogs(epoch)
+    if (!this.isCurrent(epoch)) return
     if (this.activationPromise && this.activeProjectId === this.state.projectId) {
       this.activationPromise = undefined
     }
+    this.activeProjectId = undefined
     this.publish({
       phase: 'error',
       projectId: this.state.projectId,
@@ -553,11 +635,7 @@ export class WebContainerManager {
     const process = this.currentProcess
     this.currentProcess = undefined
     if (process) {
-      try {
-        process.kill()
-      } catch {
-        // The process may have exited between reading the state and killing it.
-      }
+      this.killProcess(process)
       await withTimeout(
         process.exit.catch(() => undefined),
         PROCESS_CLEANUP_TIMEOUT_MS,
@@ -575,11 +653,50 @@ export class WebContainerManager {
     }
   }
 
-  private appendLog(log: string, epoch: number): void {
-    if (!this.isCurrent(epoch) || !log.trim()) return
-    const logs = [...this.state.logs, log]
+  private killProcess(process: WebContainerProcess): void {
+    try {
+      process.kill()
+    } catch {
+      // The process may have exited between reading the state and killing it.
+    }
+  }
+
+  private appendLog(log: string, phase: ProcessPhase, epoch: number): void {
+    const sanitized = sanitizeLogLine(log)
+    if (!this.isCurrent(epoch) || !sanitized) return
+    if (this.pendingLogEpoch !== undefined && this.pendingLogEpoch !== epoch) this.clearPendingLogs()
+    this.pendingLogEpoch = epoch
+    this.pendingLogs.push(`[${phase}] ${sanitized}`)
+
+    if (this.pendingLogs.length >= LOG_BATCH_SIZE) {
+      this.flushLogs(epoch)
+    } else if (this.logFlushTimer === undefined) {
+      this.logFlushTimer = setTimeout(() => this.flushLogs(epoch), LOG_FLUSH_INTERVAL_MS)
+    }
+  }
+
+  private flushLogs(epoch = this.pendingLogEpoch): void {
+    if (this.logFlushTimer !== undefined) {
+      clearTimeout(this.logFlushTimer)
+      this.logFlushTimer = undefined
+    }
+    if (epoch === undefined || this.pendingLogEpoch !== epoch) return
+
+    const pendingLogs = this.pendingLogs
+    this.pendingLogs = []
+    this.pendingLogEpoch = undefined
+    if (!this.isCurrent(epoch) || pendingLogs.length === 0) return
+
+    const logs = [...this.state.logs, ...pendingLogs]
     if (logs.length > MAX_LOG_ENTRIES) logs.splice(0, logs.length - MAX_LOG_ENTRIES)
     this.publish({ ...this.state, logs })
+  }
+
+  private clearPendingLogs(): void {
+    if (this.logFlushTimer !== undefined) clearTimeout(this.logFlushTimer)
+    this.logFlushTimer = undefined
+    this.pendingLogs = []
+    this.pendingLogEpoch = undefined
   }
 
   private publishIfCurrent(epoch: number, state: WebContainerState): void {
