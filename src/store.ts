@@ -53,6 +53,104 @@ const parseModels = (models: string) =>
 
 const accentPalette = ['#8ef0c4', '#f3b98b', '#a7b8ff', '#d5a6ff', '#f0a6ca', '#91d7ef']
 
+const PERSIST_VERSION = 1
+const providerKinds = new Set<string>(['openai', 'anthropic', 'gemini', 'openai-compatible'])
+const themeModes = new Set<string>(['dark', 'light', 'system'])
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const isProviderKind = (value: unknown): value is Provider['kind'] =>
+  typeof value === 'string' && providerKinds.has(value)
+
+const isThemeMode = (value: unknown): value is ThemeMode =>
+  typeof value === 'string' && themeModes.has(value)
+
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim().length > 0
+
+const sanitizeProvider = (value: unknown): Provider | null => {
+  if (!isRecord(value) || !isNonEmptyString(value.id)) return null
+
+  const id = value.id.trim()
+  const fallback = DEFAULT_PROVIDERS.find((provider) => provider.id === id)
+  const name = isNonEmptyString(value.name)
+    ? value.name.trim()
+    : fallback?.name ?? id
+  const kind = isProviderKind(value.kind) ? value.kind : fallback?.kind ?? 'openai-compatible'
+  const apiKey = typeof value.apiKey === 'string' ? value.apiKey.trim() : fallback?.apiKey ?? ''
+  const baseUrl = typeof value.baseUrl === 'string'
+    ? value.baseUrl.trim() || undefined
+    : fallback?.baseUrl
+  const models = Array.isArray(value.models)
+    ? [...new Set(value.models
+        .filter((model): model is string => typeof model === 'string')
+        .map((model) => model.trim())
+        .filter(Boolean))]
+    : fallback?.models ?? []
+  const accent = isNonEmptyString(value.accent)
+    ? value.accent.trim()
+    : fallback?.accent ?? accentPalette[0]!
+  const enabled = typeof value.enabled === 'boolean' ? value.enabled : fallback?.enabled ?? true
+
+  return { id, name, kind, apiKey, baseUrl, models, accent, enabled }
+}
+
+const sanitizeProviders = (value: unknown, fallback: Provider[]): Provider[] => {
+  if (!Array.isArray(value)) return fallback
+
+  const providers: Provider[] = []
+  const ids = new Set<string>()
+  for (const item of value) {
+    const provider = sanitizeProvider(item)
+    if (!provider || ids.has(provider.id)) continue
+    providers.push(provider)
+    ids.add(provider.id)
+  }
+
+  // An explicit empty array is a valid cleared configuration. Only fall back
+  // when a non-empty persisted array contained no usable provider records.
+  return value.length > 0 && providers.length === 0 ? fallback : providers
+}
+
+const sanitizeSelectedModelKeys = (
+  value: unknown,
+  providers: Provider[],
+  fallback: string[],
+): string[] => {
+  if (!Array.isArray(value)) return fallback
+
+  const keys = [...new Set(value
+    .filter((key): key is string => typeof key === 'string')
+    .map((key) => key.trim())
+    .filter(Boolean))]
+  if (value.length > 0 && keys.length === 0) return fallback
+
+  const availableKeys = new Set(providers
+    .filter((provider) => provider.enabled)
+    .flatMap((provider) => provider.models.map((model) => `${provider.id}::${model}`)))
+  return keys.filter((key) => availableKeys.has(key))
+}
+
+const sanitizePersistedSettings = (
+  persisted: unknown,
+  current: PersistedSettings,
+): PersistedSettings => {
+  const source = isRecord(persisted) ? persisted : {}
+  const providers = sanitizeProviders(source.providers, current.providers)
+  return {
+    providers,
+    selectedModelKeys: sanitizeSelectedModelKeys(
+      source.selectedModelKeys,
+      providers,
+      current.selectedModelKeys,
+    ),
+    prompt: typeof source.prompt === 'string' ? source.prompt : current.prompt,
+    demoMode: typeof source.demoMode === 'boolean' ? source.demoMode : current.demoMode,
+    theme: isThemeMode(source.theme) ? source.theme : current.theme,
+  }
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
@@ -123,26 +221,26 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'mosaic-model-studio',
+      version: PERSIST_VERSION,
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
+      // Keep the persisted boundary explicit. Results and isRunning are
+      // runtime-only, while provider apiKey values intentionally remain for BYOK.
+      partialize: (state): PersistedSettings => ({
         providers: state.providers,
         selectedModelKeys: state.selectedModelKeys,
         prompt: state.prompt,
         demoMode: state.demoMode,
         theme: state.theme,
       }),
-      merge: (persisted, current) => {
-        const settings = persisted as Partial<PersistedSettings> | undefined
-        return {
-          ...current,
-          ...settings,
-          providers: Array.isArray(settings?.providers) ? settings.providers : current.providers,
-          selectedModelKeys: Array.isArray(settings?.selectedModelKeys)
-            ? settings.selectedModelKeys
-            : current.selectedModelKeys,
-          theme: settings?.theme ?? current.theme,
-        }
-      },
+      migrate: (persisted) => sanitizePersistedSettings(persisted, initialSettings),
+      merge: (persisted, current) => ({
+        ...current,
+        ...sanitizePersistedSettings(persisted, current),
+        // Never rehydrate transient generation state from localStorage.
+        activeView: current.activeView,
+        results: current.results,
+        isRunning: current.isRunning,
+      }),
     },
   ),
 )
