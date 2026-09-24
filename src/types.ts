@@ -6,7 +6,7 @@ export type AppView = 'studio' | 'providers' | 'settings'
 
 export type ThemeMode = 'dark' | 'light' | 'system'
 
-export type GenerationStatus = 'queued' | 'running' | 'success' | 'error'
+export type GenerationStatus = 'queued' | 'running' | 'success' | 'error' | 'cancelled'
 
 export interface Provider {
   id: string
@@ -36,6 +36,9 @@ export interface GenerationResult {
   model: string
   accent: string
   status: GenerationStatus
+  inputPrompt?: string
+  inputDemoMode?: boolean
+  runId?: string
   project?: GeneratedProject
   /** Compatibility preview for static and legacy results. */
   html?: string
@@ -75,11 +78,11 @@ export const PROVIDER_KIND_DEFAULTS: Record<ProviderKind, { baseUrl: string; mod
     models: ['gpt-4o', 'gpt-4o-mini'],
   },
   anthropic: {
-    baseUrl: 'https://api.anthropic.com/v1',
+    baseUrl: 'https://api.anthropic.com',
     models: ['claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest'],
   },
   gemini: {
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    baseUrl: 'https://generativelanguage.googleapis.com',
     models: ['gemini-2.0-flash', 'gemini-2.0-flash-lite'],
   },
   'openai-compatible': {
@@ -104,7 +107,7 @@ export const DEFAULT_PROVIDERS: Provider[] = [
     name: 'Anthropic',
     kind: 'anthropic',
     apiKey: '',
-    baseUrl: 'https://api.anthropic.com/v1',
+    baseUrl: 'https://api.anthropic.com',
     models: ['claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest'],
     accent: '#f3b98b',
     enabled: true,
@@ -114,7 +117,7 @@ export const DEFAULT_PROVIDERS: Provider[] = [
     name: 'Google Gemini',
     kind: 'gemini',
     apiKey: '',
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    baseUrl: 'https://generativelanguage.googleapis.com',
     models: ['gemini-2.0-flash', 'gemini-2.0-flash-lite'],
     accent: '#a7b8ff',
     enabled: true,
