@@ -25,7 +25,7 @@ interface PreviewDialogProps {
 }
 
 const phaseKeys: Record<WebContainerPhase, string> = {
-  idle: 'results.web.booting',
+  idle: 'results.empty',
   booting: 'results.web.booting',
   mounting: 'results.web.mounting',
   installing: 'results.web.installing',
@@ -60,9 +60,10 @@ export function PreviewDialog({ result, open, onOpenChange }: PreviewDialogProps
     .slice(-80)
     .map((line: string) => line.length > 500 ? `${line.slice(0, 500)}…` : line)
     .join('\n')
+  const logText = state.logs.join('\n')
   const statusDescription = state.phase === 'unsupported'
     ? t('results.web.unsupportedDescription')
-    : state.error ?? t(state.phase === 'error' ? 'results.web.errorDescription' : isWebProject ? 'results.web.waitingDescription' : 'results.empty')
+    : state.error ?? t(state.phase === 'error' ? 'results.web.errorDescription' : state.phase === 'idle' ? 'results.empty' : isWebProject ? 'results.web.waitingDescription' : 'results.empty')
 
   const copyText = async (content: string, successMessage: string) => {
     if (!content) return
@@ -75,10 +76,10 @@ export function PreviewDialog({ result, open, onOpenChange }: PreviewDialogProps
   }
 
   const copyResult = () => {
-    const content = project ? JSON.stringify(project, null, 2) : result?.html
+    const content = isWebProject ? JSON.stringify(webProject, null, 2) : result?.html
     return copyText(content ?? '', isWebProject ? t('results.projectCopied') : t('results.copy'))
   }
-  const copyLogs = () => copyText(visibleLogs, t('results.copy'))
+  const copyLogs = () => copyText(logText, t('results.copy'))
 
   const stopProject = () => {
     void webContainerManager.stop().catch(() => undefined)
@@ -86,6 +87,7 @@ export function PreviewDialog({ result, open, onOpenChange }: PreviewDialogProps
 
   const phaseLabel = isSwitching ? t('results.web.switching') : t(phaseKeys[displayedPhase])
   const isActivePhase = displayedPhase !== 'idle' && displayedPhase !== 'ready' && displayedPhase !== 'error' && displayedPhase !== 'unsupported' && displayedPhase !== 'stopping'
+  const isPreviewBusy = isSwitching || isActivePhase
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -115,10 +117,10 @@ export function PreviewDialog({ result, open, onOpenChange }: PreviewDialogProps
             {isWebProject ? (
               <div className="flex size-full min-h-0 min-w-0 flex-col overflow-hidden rounded-md border border-line-soft bg-surface">
                 <div className="flex min-h-10 items-center justify-between gap-3 border-b border-line-soft bg-surface-soft px-3">
-                  <div className="flex min-w-0 items-center gap-2 text-[10px] text-muted" role="status" aria-live="polite" aria-atomic="true">
+                  <div className="flex min-w-0 items-center gap-2 text-[10px] text-muted" role="status" aria-live="polite" aria-atomic="true" aria-busy={isPreviewBusy}>
                     {(state.phase === 'error' || state.phase === 'unsupported')
                       ? <TriangleAlert className="shrink-0 text-red" size={13} />
-                      : state.phase === 'ready' ? <Check className="shrink-0 text-mint" size={13} /> : isActivePhase ? <LoaderCircle className="shrink-0 animate-spin text-violet" size={13} /> : <CircleStop className="shrink-0 text-faint" size={13} />}
+                      : state.phase === 'ready' ? <Check className="shrink-0 text-mint" size={13} /> : isPreviewBusy ? <LoaderCircle className="shrink-0 animate-spin text-violet" size={13} /> : <CircleStop className="shrink-0 text-faint" size={13} />}
                     <span className="break-words [overflow-wrap:anywhere]">{phaseLabel}</span>
                   </div>
                   {state.phase === 'ready' && !isSwitching && <span className="hidden font-mono text-[8px] uppercase tracking-[0.12em] text-mint sm:inline">{t('results.web.singleRuntime')}</span>}
@@ -129,8 +131,8 @@ export function PreviewDialog({ result, open, onOpenChange }: PreviewDialogProps
                   <iframe className="min-h-0 min-w-0 flex-1 border-0 bg-white" title={`${result?.model ?? t('results.previewTitle')} — ${t('results.previewTitle')}`} src={state.previewUrl} sandbox="allow-scripts allow-same-origin" referrerPolicy="no-referrer" />
                 ) : (
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center px-6 text-center">
-                    <span className={`grid size-11 shrink-0 place-items-center rounded-xl border ${state.phase === 'error' || state.phase === 'unsupported' ? 'border-red/25 bg-red/10 text-red' : isActivePhase ? 'border-violet/25 bg-violet/10 text-violet' : 'border-line bg-surface-soft text-faint'}`}>
-                      {state.phase === 'error' || state.phase === 'unsupported' ? <TriangleAlert size={22} /> : state.phase === 'ready' ? <Check size={22} /> : isActivePhase ? <LoaderCircle className="animate-spin" size={22} /> : <CircleStop size={22} />}
+                    <span className={`grid size-11 shrink-0 place-items-center rounded-xl border ${state.phase === 'error' || state.phase === 'unsupported' ? 'border-red/25 bg-red/10 text-red' : isPreviewBusy ? 'border-violet/25 bg-violet/10 text-violet' : 'border-line bg-surface-soft text-faint'}`}>
+                      {state.phase === 'error' || state.phase === 'unsupported' ? <TriangleAlert size={22} /> : state.phase === 'ready' ? <Check size={22} /> : isPreviewBusy ? <LoaderCircle className="animate-spin" size={22} /> : <CircleStop size={22} />}
                     </span>
                     <strong className="mt-4 break-words text-xs font-medium text-ink [overflow-wrap:anywhere]">{phaseLabel}</strong>
                     <p className="mt-2 max-w-[520px] break-words text-[11px] leading-[1.55] text-muted [overflow-wrap:anywhere]">{statusDescription}</p>

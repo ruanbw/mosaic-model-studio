@@ -44,7 +44,7 @@ export function ResultCard({ result, onExpand, onRetry, onRemove, busy }: Result
   }
 
   const copyResult = () => {
-    const content = project ? JSON.stringify(project, null, 2) : result.html
+    const content = isWebProject ? JSON.stringify(project, null, 2) : result.html
     return copyText(content ?? '', isWebProject ? t('results.projectCopied') : t('results.copy'))
   }
 

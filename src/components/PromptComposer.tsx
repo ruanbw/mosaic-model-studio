@@ -37,9 +37,12 @@ export function PromptComposer({
     }
   }
 
+  const modelSummary = selectedCount > 0
+    ? t('prompt.modelsReady', { count: selectedCount })
+    : t('prompt.selectModels')
   const statusMessage = isRunning
-    ? `${t('prompt.generating')} · ${t('prompt.modelsReady', { count: selectedCount })}`
-    : `${t('prompt.generate')} · ${t('prompt.modelsReady', { count: selectedCount })}`
+    ? `${t('prompt.generating')} · ${modelSummary}`
+    : `${t('prompt.generate')} · ${modelSummary}`
 
   return (
     <section aria-labelledby="prompt-heading" aria-busy={isRunning}>
@@ -61,7 +64,7 @@ export function PromptComposer({
           rows={5}
           maxLength={4000}
           aria-label={t('prompt.pageLabel')}
-          className="block min-h-[135px] w-full resize-y overflow-wrap-anywhere bg-transparent px-5 pb-3 pt-5 text-[15px] leading-[1.65] text-ink outline-none placeholder:text-faint"
+          className="block min-h-[135px] w-full resize-y [overflow-wrap:anywhere] bg-transparent px-5 pb-3 pt-5 text-[15px] leading-[1.65] text-ink outline-none placeholder:text-faint"
         />
         <div className="flex min-h-[49px] flex-col items-start justify-between gap-3 border-t border-line-soft px-3.5 pb-2.5 pt-2.5 min-[580px]:flex-row min-[580px]:items-center min-[580px]:px-5 min-[580px]:pb-2.5 min-[580px]:pt-2.5">
           <div className="flex flex-wrap items-center gap-1.5" aria-label={t('prompt.templatesLabel')}>
