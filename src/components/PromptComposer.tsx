@@ -78,7 +78,7 @@ export function PromptComposer({
           <button className="inline-flex min-h-[39px] min-w-[137px] items-center justify-center gap-2 rounded-[7px] border border-mint bg-mint px-3.5 text-[11px] font-semibold text-[#122018] shadow-[0_5px_18px_color-mix(in_srgb,var(--mint)_12%,transparent)] transition-colors hover:border-[#c0f7d9] hover:bg-[#c0f7d9] disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={onGenerate} disabled={isRunning || !prompt.trim() || selectedCount === 0}>
             {isRunning ? <span className="size-3.5 animate-spin rounded-full border-2 border-[#122018]/30 border-t-[#122018]" /> : <WandSparkles size={17} />}
             {isRunning ? t('prompt.generating') : t('prompt.generate')}
-            {!isRunning && <span className="ml-1 border-l border-[#122018]/20 pl-2 font-mono text-[10px] text-[#122018]/60">⌘↵</span>}
+            {!isRunning && <span className="ml-1 border-l border-[#122018]/20 pl-2 font-mono text-[10px] text-[#122018]/60">Ctrl/⌘↵</span>}
           </button>
         </div>
       </div>
