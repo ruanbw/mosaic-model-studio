@@ -90,4 +90,16 @@ describe('createProjectRuntimeFiles', () => {
     expect(runtimeFiles['package.json']).toContain('"name": "generated-web-project"')
     expect(runtimeFiles['package-lock.json']).toBeTruthy()
   })
+
+  it('rejects non-scaffold Vite config aliases', () => {
+    const project: GeneratedProject = {
+      schemaVersion: 1,
+      kind: 'web',
+      title: 'Generated app',
+      summary: '',
+      files: [...webFiles, { path: 'vite.config.js', content: 'export default {}' }],
+    }
+
+    expect(() => createProjectRuntimeFiles(project)).toThrow('宿主构建配置')
+  })
 })

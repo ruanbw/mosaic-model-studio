@@ -12,6 +12,13 @@ const MAX_PATH_LENGTH = 256
 const MAX_TITLE_LENGTH = 120
 const MAX_SUMMARY_LENGTH = 500
 const MAX_ERROR_LENGTH = 500
+const HOST_SCAFFOLD_PATHS = new Set([
+  'package.json',
+  'package-lock.json',
+  'index.html',
+  'vite.config.ts',
+  'tsconfig.json',
+])
 const encoder = new TextEncoder()
 
 const FORBIDDEN_BASENAMES = new Set([
@@ -215,7 +222,7 @@ const parseRawProject = (raw: string): unknown => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-const normalizePath = (value: unknown): string => {
+const normalizePath = (value: unknown, options: { allowHostScaffold?: boolean } = {}): string => {
   if (typeof value !== 'string') throw new Error('项目文件路径必须是字符串')
   const path = value.trim()
   if (!path) throw new Error('项目文件路径不能为空')
@@ -242,7 +249,7 @@ const normalizePath = (value: unknown): string => {
   if (FORBIDDEN_BASENAMES.has(basename)) {
     throw new Error(`项目文件不能包含 lockfile 或包配置：${errorInput(value)}`)
   }
-  if (isForbiddenBuildPath(normalized)) {
+  if (isForbiddenBuildPath(normalized) && !(options.allowHostScaffold && HOST_SCAFFOLD_PATHS.has(normalized.toLowerCase()))) {
     throw new Error(`项目文件不能覆盖宿主构建配置：${errorInput(value)}`)
   }
   const dotIndex = basename.lastIndexOf('.')
@@ -400,7 +407,7 @@ export default defineConfig({
 
 export const createProjectRuntimeFiles = (project: GeneratedProject): Record<string, string> => {
   const normalizedFiles = project.files.map((file) => {
-    const path = normalizePath(file.path)
+    const path = normalizePath(file.path, { allowHostScaffold: true })
     if (project.kind === 'web' && path.toLowerCase() === 'index.html') {
       throw new Error('Web 项目不能覆盖固定 index.html scaffold')
     }
