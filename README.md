@@ -27,6 +27,8 @@
 
 ## 开始使用
 
+环境要求：Node.js 22+、pnpm 12+。
+
 ```bash
 pnpm install
 pnpm dev
@@ -35,6 +37,7 @@ pnpm dev
 打开终端输出的本地地址即可。生产构建：
 
 ```bash
+pnpm run typecheck
 pnpm run build
 pnpm run preview
 ```
