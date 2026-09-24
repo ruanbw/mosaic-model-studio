@@ -6,6 +6,22 @@
     <meta name="theme-color" content="#101217" />
     <meta name="description" content="Mosaic — 在同一提示词下并行比较多个模型的网页生成结果。" />
     <title>Mosaic · Model Studio</title>
+    <script>
+      (() => {
+        try {
+          const saved = JSON.parse(localStorage.getItem('mosaic-model-studio') || '{}')
+          const preference = saved.state?.theme || 'dark'
+          const resolved = preference === 'system'
+            ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+            : preference
+          document.documentElement.dataset.theme = resolved
+          document.documentElement.style.colorScheme = resolved
+          document.querySelector('meta[name="theme-color"]')?.setAttribute('content', resolved === 'light' ? '#f4f6f3' : '#101217')
+        } catch {
+          document.documentElement.dataset.theme = 'dark'
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

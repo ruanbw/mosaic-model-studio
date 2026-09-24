@@ -13,19 +13,16 @@ export const PROMPT_TEMPLATES = [
   {
     id: 'saas',
     label: 'SaaS 发布页',
-    prompt:
-      '为一个 AI 团队协作产品设计发布页。风格克制、精确、有高级感，包含产品界面预览、核心功能、社会证明、价格卡片与 FAQ。',
+    promptKey: 'templatePrompts.saas',
   },
   {
     id: 'portfolio',
     label: '个人作品集',
-    prompt:
-      '为一位独立产品设计师设计个人作品集。首页要大胆但不浮夸，突出精选项目、个人简介与联系入口，并适配移动端。',
+    promptKey: 'templatePrompts.portfolio',
   },
   {
     id: 'dashboard',
     label: '数据仪表盘',
-    prompt:
-      '设计一个创作者数据仪表盘，包含关键指标、趋势图、内容列表和侧边导航。界面需要专业、清晰且具有响应式布局。',
+    promptKey: 'templatePrompts.dashboard',
   },
 ] as const

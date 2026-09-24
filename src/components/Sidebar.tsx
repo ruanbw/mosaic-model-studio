@@ -1,14 +1,6 @@
-import {
-  Boxes,
-  ChevronDown,
-  CircleHelp,
-  Database,
-  KeyRound,
-  LayoutGrid,
-  Plus,
-  Settings2,
-  Sparkles,
-} from 'lucide-react'
+import * as Dialog from '@radix-ui/react-dialog'
+import { Boxes, ChevronDown, CircleHelp, Database, KeyRound, LayoutGrid, Plus, Settings2, Sparkles, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { AppView } from '../types'
 
 interface SidebarProps {
@@ -17,79 +9,32 @@ interface SidebarProps {
   configuredCount: number
   onViewChange: (view: AppView) => void
   onAddProvider: () => void
+  mobileOpen: boolean
+  onMobileOpenChange: (open: boolean) => void
 }
 
-const navigation: { id: AppView; label: string; icon: typeof LayoutGrid }[] = [
-  { id: 'studio', label: 'Studio', icon: LayoutGrid },
-  { id: 'providers', label: 'Providers', icon: Boxes },
-  { id: 'settings', label: 'Settings', icon: Settings2 },
-]
+interface SidebarContentProps extends Omit<SidebarProps, 'mobileOpen' | 'onMobileOpenChange'> { onClose?: () => void }
+const navigation: { id: AppView; icon: typeof LayoutGrid }[] = [{ id: 'studio', icon: LayoutGrid }, { id: 'providers', icon: Boxes }, { id: 'settings', icon: Settings2 }]
+const labelKeys: Record<AppView, string> = { studio: 'nav.studio', providers: 'nav.providers', settings: 'nav.settings' }
 
-export function Sidebar({
-  activeView,
-  providerCount,
-  configuredCount,
-  onViewChange,
-  onAddProvider,
-}: SidebarProps) {
-  return (
-    <aside className="sidebar">
-      <div className="brand-lockup">
-        <div className="brand-mark"><Sparkles size={16} fill="currentColor" /></div>
-        <div>
-          <strong>Mosaic</strong>
-          <span>MODEL STUDIO</span>
-        </div>
-      </div>
+function SidebarContent({ activeView, providerCount, configuredCount, onViewChange, onAddProvider, onClose }: SidebarContentProps) {
+  const { t } = useTranslation()
+  const navigate = (view: AppView) => { onViewChange(view); onClose?.() }
+  return <>
+    <div className="mb-6 flex items-center gap-2.5 px-2.5"><div className="grid size-7 place-items-center rounded-lg bg-mint text-[#101710] shadow-[0_0_0_4px_color-mix(in_srgb,var(--mint)_8%,transparent)]"><Sparkles size={16} fill="currentColor" /></div><div className="flex min-w-0 flex-1 flex-col gap-0.5"><strong className="text-[16px] tracking-[-0.03em]">Mosaic</strong><span className="font-mono text-[9px] tracking-[0.12em] text-faint">MODEL STUDIO</span></div>{onClose && <Dialog.Close asChild><button className="grid size-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface-hover hover:text-ink" type="button" aria-label={t('common.close')}><X size={18} /></button></Dialog.Close>}</div>
+    <div className="mb-6 flex w-full items-center gap-2 rounded-[9px] border border-line bg-surface px-2 py-2 text-left"><span className="grid size-6 shrink-0 place-items-center rounded-[7px] bg-violet text-xs font-bold text-[#17131e]">P</span><span className="flex min-w-0 flex-1 flex-col gap-0.5"><strong className="truncate text-[11px] font-semibold">Personal workspace</strong><small className="font-mono text-[9px] text-faint">{t('nav.localOnly')}</small></span></div>
+    <div className="mb-2 px-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-faint">{t('nav.workspace')}</div><nav className="grid gap-0.5" aria-label={t('nav.workspace')}>{navigation.map((item) => { const Icon = item.icon; const active = activeView === item.id; return <button className={`flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2.5 text-left text-xs transition-colors ${active ? 'border-mint/20 bg-mint/10 text-mint' : 'border-transparent text-muted hover:bg-surface-hover hover:text-ink'}`} key={item.id} type="button" onClick={() => navigate(item.id)} aria-current={active ? 'page' : undefined}><Icon size={17} strokeWidth={active ? 2.2 : 1.7} /><span>{t(labelKeys[item.id])}</span>{item.id === 'providers' && <em className={`ml-auto min-w-5 rounded-full px-1.5 py-0.5 text-center font-mono text-[10px] not-italic ${active ? 'bg-mint/15 text-mint' : 'bg-surface-hover text-muted'}`}>{providerCount}</em>}</button> })}</nav>
+    <div className="mb-2 mt-7 flex items-center justify-between px-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-faint"><span>{t('nav.providers')}</span><button className="grid size-[22px] place-items-center rounded-md border border-line text-muted transition-colors hover:border-mint/40 hover:text-mint" type="button" onClick={() => { onAddProvider(); onClose?.() }} aria-label={t('providers.add')}><Plus size={15} /></button></div><div className="mx-1 rounded-[9px] border border-line-soft bg-surface p-3"><div className="flex items-center gap-2"><span className="grid size-6 place-items-center rounded-[7px] bg-mint/10 text-mint"><KeyRound size={14} /></span><span className="flex flex-col gap-0.5"><strong className="text-xs">{configuredCount}/{providerCount}</strong><small className="text-[10px] text-faint">{t('nav.configured')}</small></span></div><div className="my-3 h-1 overflow-hidden rounded-full bg-surface-hover"><span className="block h-full rounded-full bg-mint transition-[width] duration-300" style={{ width: `${providerCount ? (configuredCount / providerCount) * 100 : 0}%` }} /></div><button className="inline-flex items-center gap-1.5 text-[10px] text-muted transition-colors hover:text-mint" type="button" onClick={() => navigate('providers')}>{t('nav.manage')} <ChevronDown className="-rotate-90" size={14} /></button></div>
+    <div className="mt-auto grid gap-4"><div className="flex items-center gap-2 rounded-lg border border-line-soft bg-surface px-2.5 py-2.5 font-mono text-[10px] leading-[1.4] text-faint"><Database className="text-mint" size={14} /><span>{t('nav.localData')}</span></div><button className="flex items-center gap-2 px-2.5 text-left text-[11px] text-muted transition-colors hover:text-ink" type="button" onClick={() => navigate('settings')}><CircleHelp size={15} />{t('nav.help')}</button></div>
+  </>
+}
 
-      <button className="workspace-switcher" type="button">
-        <span className="workspace-avatar">P</span>
-        <span className="workspace-copy"><strong>Personal workspace</strong><small>Local only</small></span>
-        <ChevronDown size={15} />
-      </button>
-
-      <div className="sidebar-section-label">Workspace</div>
-      <nav className="sidebar-nav" aria-label="主导航">
-        {navigation.map((item) => {
-          const Icon = item.icon
-          const active = activeView === item.id
-          return (
-            <button
-              className={`nav-item ${active ? 'active' : ''}`}
-              key={item.id}
-              type="button"
-              onClick={() => onViewChange(item.id)}
-              aria-current={active ? 'page' : undefined}
-            >
-              <Icon size={17} strokeWidth={active ? 2.2 : 1.7} />
-              <span>{item.label}</span>
-              {item.id === 'providers' && <em>{providerCount}</em>}
-            </button>
-          )
-        })}
-      </nav>
-
-      <div className="sidebar-section-label provider-label">
-        <span>Providers</span>
-        <button className="sidebar-add" type="button" onClick={onAddProvider} aria-label="添加提供商">
-          <Plus size={15} />
-        </button>
-      </div>
-      <div className="sidebar-provider-list">
-        <div className="sidebar-provider-summary">
-          <span className="summary-icon"><KeyRound size={14} /></span>
-          <span><strong>{configuredCount}/{providerCount}</strong><small>已配置密钥</small></span>
-        </div>
-        <div className="storage-meter"><span style={{ width: `${providerCount ? (configuredCount / providerCount) * 100 : 0}%` }} /></div>
-        <button className="manage-link" type="button" onClick={() => onViewChange('providers')}>
-          管理连接 <ChevronDown size={14} className="rotate-minus-90" />
-        </button>
-      </div>
-
-      <div className="sidebar-bottom">
-        <div className="local-note"><Database size={14} /><span>数据保存在<br />此浏览器</span></div>
-        <button className="help-link" type="button"><CircleHelp size={15} />帮助与快捷键</button>
-      </div>
-    </aside>
-  )
+export function Sidebar(props: SidebarProps) {
+  const { activeView, providerCount, configuredCount, onViewChange, onAddProvider, mobileOpen, onMobileOpenChange } = props
+  const { t } = useTranslation()
+  const contentProps = { activeView, providerCount, configuredCount, onViewChange, onAddProvider }
+  return <>
+    <aside id="workspace-sidebar-desktop" className="fixed inset-y-0 left-0 z-20 hidden w-[252px] flex-col border-r border-line-soft bg-sidebar px-3.5 py-6 min-[821px]:flex"><SidebarContent {...contentProps} /></aside>
+    <Dialog.Root open={mobileOpen} onOpenChange={onMobileOpenChange}><Dialog.Portal><Dialog.Overlay className="fixed inset-0 z-[50] bg-black/55 backdrop-blur-[1px] min-[821px]:hidden" /><Dialog.Content id="workspace-sidebar" className="fixed inset-y-0 left-0 z-[51] flex w-[min(292px,88vw)] flex-col border-r border-line bg-sidebar px-3.5 py-6 shadow-2xl outline-none min-[821px]:hidden"><Dialog.Title className="sr-only">{t('nav.menu')}</Dialog.Title><Dialog.Description className="sr-only">{t('nav.workspace')}</Dialog.Description><SidebarContent {...contentProps} onClose={() => onMobileOpenChange(false)} /></Dialog.Content></Dialog.Portal></Dialog.Root>
+  </>
 }

@@ -1,205 +1,45 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Eye, EyeOff, KeyRound, Plus, Server, X } from 'lucide-react'
+import { Eye, EyeOff, KeyRound, Plus, RefreshCw, Server, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
+import { fetchProviderModels, providerErrorMessage } from '../api'
 import { providerDraftSchema, type ProviderFormValues } from '../validation'
-import {
-  PROVIDER_KIND_DEFAULTS,
-  PROVIDER_KIND_LABELS,
-  type Provider,
-  type ProviderDraft,
-  type ProviderKind,
-} from '../types'
+import { PROVIDER_KIND_DEFAULTS, PROVIDER_KIND_LABELS, type Provider, type ProviderDraft, type ProviderKind } from '../types'
 
-interface ProviderDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  provider?: Provider | null
-  onSave: (draft: ProviderDraft, providerId?: string) => void
-  onDelete?: (provider: Provider) => void
-}
+interface ProviderDialogProps { open: boolean; onOpenChange: (open: boolean) => void; provider?: Provider | null; onSave: (draft: ProviderDraft, providerId?: string) => void; onDelete?: (provider: Provider) => void }
+const emptyValues: ProviderFormValues = { name: '', kind: 'openai-compatible', apiKey: '', baseUrl: PROVIDER_KIND_DEFAULTS['openai-compatible'].baseUrl, models: '' }
 
-const emptyValues: ProviderFormValues = {
-  name: '',
-  kind: 'openai-compatible',
-  apiKey: '',
-  baseUrl: PROVIDER_KIND_DEFAULTS['openai-compatible'].baseUrl,
-  models: '',
-}
-
-export function ProviderDialog({
-  open,
-  onOpenChange,
-  provider = null,
-  onSave,
-  onDelete,
-}: ProviderDialogProps) {
+export function ProviderDialog({ open, onOpenChange, provider = null, onSave, onDelete }: ProviderDialogProps) {
+  const { t } = useTranslation()
   const [showKey, setShowKey] = useState(false)
-  const {
-    register,
-    handleSubmit,
-    reset,
-    setValue,
-    getValues,
-    watch,
-    formState: { errors, isSubmitting },
-  } = useForm<ProviderFormValues>({
-    resolver: zodResolver(providerDraftSchema),
-    defaultValues: emptyValues,
-  })
+  const [fetchingModels, setFetchingModels] = useState(false)
+  const { register, handleSubmit, reset, setValue, getValues, watch, formState: { errors, isSubmitting } } = useForm<ProviderFormValues>({ resolver: zodResolver(providerDraftSchema), defaultValues: emptyValues })
   const kind = watch('kind')
-  const kindField = register('kind', {
-    onChange: (event) => {
-      const nextKind = event.target.value as ProviderKind
-      const currentBaseUrl = getValues('baseUrl')
-      const currentDefault = PROVIDER_KIND_DEFAULTS[kind].baseUrl
-      if (!currentBaseUrl || currentBaseUrl === currentDefault) {
-        setValue('baseUrl', PROVIDER_KIND_DEFAULTS[nextKind].baseUrl, { shouldValidate: true })
-      }
-    },
-  })
+  const apiKeyValue = watch('apiKey')
+  const kindField = register('kind', { onChange: (event) => { const nextKind = event.target.value as ProviderKind; const currentBaseUrl = getValues('baseUrl'); const currentDefault = PROVIDER_KIND_DEFAULTS[kind].baseUrl; if (!currentBaseUrl || currentBaseUrl === currentDefault) setValue('baseUrl', PROVIDER_KIND_DEFAULTS[nextKind].baseUrl, { shouldValidate: true }) } })
 
-  useEffect(() => {
-    if (!open) return
-    reset(
-      provider
-        ? {
-            name: provider.name,
-            kind: provider.kind,
-            apiKey: provider.apiKey,
-            baseUrl: provider.baseUrl ?? '',
-            models: provider.models.join('\n'),
-          }
-        : emptyValues,
-    )
-    setShowKey(false)
-  }, [open, provider, reset])
-
-  const submit = (values: ProviderFormValues) => {
-    onSave(values, provider?.id)
-    toast.success(provider ? '提供商已更新' : '提供商已添加')
-    onOpenChange(false)
+  useEffect(() => { if (!open) return; reset(provider ? { name: provider.name, kind: provider.kind, apiKey: provider.apiKey, baseUrl: provider.baseUrl ?? '', models: provider.models.join('\n') } : emptyValues); setShowKey(false) }, [open, provider, reset])
+  const handleFetchModels = async () => {
+    const values = getValues()
+    if (!values.apiKey.trim()) { toast.error(t('dialog.apiKeyRequired')); return }
+    setFetchingModels(true)
+    try {
+      const models = await fetchProviderModels({ id: 'draft', name: values.name || 'Draft', kind: values.kind, apiKey: values.apiKey, baseUrl: values.baseUrl || undefined, models: [], accent: '#8ef0c4', enabled: true })
+      setValue('models', models.join('\n'), { shouldDirty: true, shouldValidate: true })
+      toast.success(t('dialog.modelsFetched', { count: models.length }))
+    } catch (error) { toast.error(providerErrorMessage(error)) } finally { setFetchingModels(false) }
   }
+  const submit = (values: ProviderFormValues) => { onSave(values, provider?.id); toast.success(provider ? t('dialog.updated') : t('dialog.added')); onOpenChange(false) }
 
-  return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className="dialog-content provider-dialog">
-          <div className="dialog-header">
-            <div>
-              <p className="eyebrow">LOCAL CONFIG</p>
-              <Dialog.Title>{provider ? '编辑提供商' : '添加提供商'}</Dialog.Title>
-              <Dialog.Description>
-                密钥只保存在当前浏览器的本地存储中，不会发送到 Mosaic 服务器。
-              </Dialog.Description>
-            </div>
-            <Dialog.Close asChild>
-              <button className="icon-button subtle" type="button" aria-label="关闭弹窗">
-                <X size={17} />
-              </button>
-            </Dialog.Close>
-          </div>
-
-          <form className="provider-form" onSubmit={handleSubmit(submit)}>
-            <div className="form-grid two-columns">
-              <label className="field">
-                <span>提供商名称</span>
-                <input {...register('name')} placeholder="例如：OpenRouter" autoFocus />
-                {errors.name && <small className="field-error">{errors.name.message}</small>}
-              </label>
-              <label className="field">
-                <span>接口协议</span>
-                <select {...kindField}>
-                  {Object.entries(PROVIDER_KIND_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <label className="field">
-              <span>Base URL</span>
-              <div className="input-with-icon">
-                <Server size={16} />
-                <input
-                  {...register('baseUrl')}
-                  placeholder={PROVIDER_KIND_DEFAULTS[kind].baseUrl}
-                  spellCheck={false}
-                />
-              </div>
-              {errors.baseUrl && <small className="field-error">{errors.baseUrl.message}</small>}
-              <small className="field-hint">切换协议时会同步默认地址；自定义地址请确认与模型服务匹配。</small>
-            </label>
-
-            <label className="field">
-              <span>API Key</span>
-              <div className="input-with-icon key-input">
-                <KeyRound size={16} />
-                <input
-                  {...register('apiKey')}
-                  type={showKey ? 'text' : 'password'}
-                  placeholder="sk-..."
-                  autoComplete="off"
-                />
-                <button
-                  className="input-action"
-                  type="button"
-                  onClick={() => setShowKey((visible) => !visible)}
-                  aria-label={showKey ? '隐藏 API Key' : '显示 API Key'}
-                >
-                  {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              {errors.apiKey && <small className="field-error">{errors.apiKey.message}</small>}
-            </label>
-
-            <label className="field">
-              <span>模型 ID</span>
-              <textarea
-                {...register('models')}
-                rows={4}
-                placeholder={'每行一个模型，例如：\ngpt-4o\nmy-provider/model'}
-              />
-              <small className="field-hint">支持换行或逗号分隔；模型名称由对应服务商定义。</small>
-              {errors.models && <small className="field-error">{errors.models.message}</small>}
-            </label>
-
-            <div className="security-note">
-              <span className="security-note-mark">!</span>
-              <p>
-                这是个人 BYOK 工具。浏览器本地存储可被同源脚本读取，请使用测试密钥、设置额度并定期撤销。
-              </p>
-            </div>
-
-            <div className="dialog-actions">
-              {provider && onDelete && (
-                <button
-                  className="button danger-ghost mobile-delete"
-                  type="button"
-                  onClick={() => onDelete(provider)}
-                >
-                  删除提供商
-                </button>
-              )}
-              <div className="dialog-actions-spacer" />
-              <Dialog.Close asChild>
-                <button className="button secondary" type="button">
-                  取消
-                </button>
-              </Dialog.Close>
-              <button className="button primary" type="submit" disabled={isSubmitting}>
-                <Plus size={16} />
-                {provider ? '保存修改' : '添加提供商'}
-              </button>
-            </div>
-          </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  )
+  return <Dialog.Root open={open} onOpenChange={onOpenChange}><Dialog.Portal><Dialog.Overlay className="fixed inset-0 z-[80] bg-[#030507]/72 backdrop-blur-sm" /><Dialog.Content className="fixed left-1/2 top-1/2 z-[81] max-h-[calc(100vh-30px)] w-[min(560px,calc(100vw-30px))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[11px] border border-line bg-surface p-5 shadow-[0_28px_80px_color-mix(in_srgb,#000_45%,transparent)] max-[580px]:p-4"><div className="flex items-start justify-between gap-4 border-b border-line-soft pb-4"><div><p className="eyebrow mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-faint">LOCAL CONFIG</p><Dialog.Title className="m-0 text-xl font-medium tracking-[-0.04em] text-ink">{provider ? t('dialog.edit') : t('dialog.add')}</Dialog.Title><Dialog.Description className="mt-2 max-w-[390px] text-[11px] leading-[1.5] text-muted">{t('dialog.description')}</Dialog.Description></div><Dialog.Close asChild><button className="grid size-7 place-items-center rounded-md text-[#737b82] transition-colors hover:bg-surface-hover hover:text-ink" type="button" aria-label={t('common.close')}><X size={17} /></button></Dialog.Close></div>
+      <form className="grid gap-4 pt-4" onSubmit={handleSubmit(submit)}><div className="grid gap-3 min-[580px]:grid-cols-2"><label className="flex flex-col gap-1.5"><span className="text-[11px] font-medium text-[#aab0b1]">{t('dialog.name')}</span><input className="w-full rounded-md border border-line bg-surface-soft px-2.5 py-2.5 text-xs text-ink outline-none placeholder:text-faint focus:border-mint/50" {...register('name')} placeholder={t('dialog.namePlaceholder')} autoFocus />{errors.name && <small className="text-[10px] text-red">{t('validation.name')}</small>}</label><label className="flex flex-col gap-1.5"><span className="text-[11px] font-medium text-[#aab0b1]">{t('dialog.protocol')}</span><select className="w-full rounded-md border border-line bg-surface-soft px-2.5 py-2.5 text-xs text-ink outline-none focus:border-mint/50" {...kindField}>{Object.entries(PROVIDER_KIND_LABELS).map(([value]) => <option key={value} value={value}>{t(`providerKind.${value}`)}</option>)}</select></label></div>
+        <label className="flex flex-col gap-1.5"><span className="text-[11px] font-medium text-[#aab0b1]">{t('dialog.baseUrl')}</span><div className="relative"><Server className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[#707980]" size={16} /><input className="w-full rounded-md border border-line bg-surface-soft py-2.5 pl-8 pr-2.5 text-xs text-ink outline-none placeholder:text-[#5f676e] focus:border-mint/50" {...register('baseUrl')} placeholder={PROVIDER_KIND_DEFAULTS[kind].baseUrl} spellCheck={false} /></div>{errors.baseUrl && <small className="text-[10px] text-red">{t('validation.baseUrl')}</small>}<small className="text-[10px] leading-[1.45] text-[#687078]">{t('dialog.urlHint')}</small></label>
+        <label className="flex flex-col gap-1.5"><span className="text-[11px] font-medium text-[#aab0b1]">{t('dialog.key')}</span><div className="relative"><KeyRound className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[#707980]" size={16} /><input className="w-full rounded-md border border-line bg-surface-soft py-2.5 pl-8 pr-9 text-xs text-ink outline-none placeholder:text-[#5f676e] focus:border-mint/50" {...register('apiKey')} type={showKey ? 'text' : 'password'} placeholder="sk-..." autoComplete="off" /><button className="absolute right-1 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded text-[#737b82] transition-colors hover:bg-surface-hover hover:text-ink" type="button" onClick={() => setShowKey((visible) => !visible)} aria-label={showKey ? t('dialog.hideKey') : t('dialog.showKey')}>{showKey ? <EyeOff size={16} /> : <Eye size={16} />}</button></div>{errors.apiKey && <small className="text-[10px] text-red">{t('validation.apiKey')}</small>}</label>
+        <label className="flex flex-col gap-1.5"><div className="flex items-center justify-between gap-3"><span className="text-[11px] font-medium text-[#aab0b1]">{t('dialog.models')}</span><button className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface-soft px-2 py-1 text-[10px] font-medium text-mint transition-colors hover:bg-surface-hover disabled:opacity-50" type="button" onClick={handleFetchModels} disabled={fetchingModels || !apiKeyValue.trim()}><RefreshCw className={fetchingModels ? 'animate-spin' : ''} size={13} />{fetchingModels ? t('dialog.fetchingModels') : t('dialog.fetchModels')}</button></div><textarea className="min-h-[84px] w-full resize-y rounded-md border border-line bg-surface-soft px-2.5 py-2.5 text-xs leading-[1.5] text-ink outline-none placeholder:text-[#5f676e] focus:border-mint/50" {...register('models')} rows={4} placeholder={t('dialog.modelsPlaceholder')} /><small className="text-[10px] leading-[1.45] text-[#687078]">{t('dialog.modelHint')}</small>{errors.models && <small className="text-[10px] text-red">{t('validation.models')}</small>}</label>
+        <div className="flex items-start gap-2 rounded-md border border-yellow/15 bg-yellow/7 p-2.5 text-[#aa9e7c]"><span className="grid size-4 shrink-0 place-items-center rounded-full bg-yellow font-mono text-[10px] font-bold text-[#252014]">!</span><p className="m-0 text-[10px] leading-[1.5]">{t('dialog.security')}</p></div>
+        <div className="flex flex-wrap items-center gap-2 pt-1">{provider && onDelete && <button className="inline-flex min-h-9 items-center gap-2 rounded-md border border-red/25 bg-transparent px-3 text-[11px] font-semibold text-red transition-colors hover:bg-red/10 max-[580px]:flex" type="button" onClick={() => onDelete(provider)}>{t('dialog.delete')}</button>}<div className="flex-1" /><Dialog.Close asChild><button className="inline-flex min-h-9 items-center gap-2 rounded-md border border-line bg-surface-soft px-3 text-[11px] font-semibold text-ink transition-colors hover:bg-[#2a3038]" type="button">{t('dialog.cancel')}</button></Dialog.Close><button className="inline-flex min-h-9 items-center gap-2 rounded-md border border-mint bg-mint px-3 text-[11px] font-semibold text-[#122018] transition-colors hover:bg-[#c0f7d9] disabled:opacity-50" type="submit" disabled={isSubmitting}><Plus size={16} />{provider ? t('dialog.save') : t('dialog.add')}</button></div>
+      </form></Dialog.Content></Dialog.Portal></Dialog.Root>
 }

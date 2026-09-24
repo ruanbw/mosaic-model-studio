@@ -1,28 +1,9 @@
 import { ArrowRight, Boxes, Sparkles, WandSparkles } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
-interface EmptyResultsProps {
-  onLoadDemo: () => void
-  onSelectModels: () => void
-}
+interface EmptyResultsProps { onLoadDemo: () => void; onSelectModels: () => void }
 
 export function EmptyResults({ onLoadDemo, onSelectModels }: EmptyResultsProps) {
-  return (
-    <div className="empty-results">
-      <div className="empty-results-art" aria-hidden="true">
-        <div className="empty-art-ring ring-one" />
-        <div className="empty-art-ring ring-two" />
-        <div className="empty-art-core"><Sparkles size={23} /></div>
-        <span className="art-star star-one">✦</span>
-        <span className="art-star star-two">·</span>
-        <span className="art-star star-three">✦</span>
-      </div>
-      <p className="eyebrow">READY WHEN YOU ARE</p>
-      <h3>让想法同时发生</h3>
-      <p className="empty-results-copy">选择模型，写下一个方向，Mosaic 会把同一份提示词交给它们并行创作。</p>
-      <div className="empty-results-actions">
-        <button className="button primary" type="button" onClick={onSelectModels}><Boxes size={16} />选择模型<ArrowRight size={15} /></button>
-        <button className="text-button" type="button" onClick={onLoadDemo}><WandSparkles size={15} />查看示例结果</button>
-      </div>
-    </div>
-  )
+  const { t } = useTranslation()
+  return <div className="flex min-h-[335px] flex-col items-center justify-center rounded-[10px] border border-dashed border-line bg-surface-soft px-5 py-10 text-center"><div className="relative mb-5 size-[108px]" aria-hidden="true"><div className="absolute inset-[18px_1px] rotate-[33deg] rounded-full border border-mint/35" /><div className="absolute inset-[1px_18px] -rotate-[33deg] rounded-full border border-violet/35" /><div className="absolute inset-[31px] grid size-[46px] place-items-center rounded-full bg-mint text-[#15231b] shadow-[0_0_30px_color-mix(in_srgb,var(--mint)_20%,transparent)]"><Sparkles size={23} /></div><span className="absolute right-2.5 top-1 font-mono text-[15px] text-mint">✦</span><span className="absolute bottom-1.5 left-3 font-mono text-2xl text-violet">·</span><span className="absolute left-0 top-[18px] font-mono text-[10px] text-orange">✦</span></div><p className="eyebrow mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-faint">{t('empty.eyebrow')}</p><h3 className="m-0 text-[19px] font-medium tracking-[-0.03em] text-ink">{t('empty.title')}</h3><p className="mb-5 mt-2 max-w-[360px] text-xs leading-[1.6] text-muted">{t('empty.copy')}</p><div className="flex items-center gap-4"><button className="inline-flex min-h-9 items-center gap-2 rounded-[7px] border border-mint bg-mint px-3.5 text-[11px] font-semibold text-[#122018] transition-colors hover:bg-[#c0f7d9]" type="button" onClick={onSelectModels}><Boxes size={16} />{t('empty.select')}<ArrowRight size={15} /></button><button className="inline-flex items-center gap-1.5 py-0.5 text-[10px] text-[#8c9499] transition-colors hover:text-ink" type="button" onClick={onLoadDemo}><WandSparkles size={15} />{t('empty.demo')}</button></div></div>
 }

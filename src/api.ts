@@ -83,6 +83,36 @@ const createGeminiClient = (provider: Provider) =>
     },
   })
 
+export const fetchProviderModels = async (
+  provider: Provider,
+  options: GenerationOptions = {},
+): Promise<string[]> => {
+  assertConfigured(provider)
+  const modelIds: string[] = []
+
+  if (provider.kind === 'gemini') {
+    const client = createGeminiClient(provider)
+    const pager = await client.models.list({
+      config: { pageSize: 200, abortSignal: options.signal },
+    })
+    for await (const model of pager) {
+      if (model.name) modelIds.push(model.name.replace(/^models\//, ''))
+    }
+  } else if (provider.kind === 'anthropic') {
+    const client = createAnthropicClient(provider)
+    const page = await client.models.list({ limit: 200 }, { signal: options.signal })
+    for await (const model of page) modelIds.push(model.id)
+  } else {
+    const client = createOpenAIClient(provider)
+    const page = await client.models.list({ signal: options.signal })
+    for await (const model of page) modelIds.push(model.id)
+  }
+
+  const uniqueModels = [...new Set(modelIds)].sort((left, right) => left.localeCompare(right))
+  if (uniqueModels.length === 0) throw new Error('该服务没有返回可用模型')
+  return uniqueModels
+}
+
 const generateWithOpenAICompatible = async (
   provider: Provider,
   model: string,

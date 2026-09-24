@@ -6,20 +6,24 @@
 
 - 添加、编辑、删除多个模型提供商
 - 支持 OpenAI、Anthropic、Google Gemini、OpenRouter 兼容接口和自定义 OpenAI-compatible Base URL
+- 通过各官方 SDK 的模型列表接口自动获取可用模型；手动输入作为不支持模型列表时的兜底
 - API Key、提供商、模型、提示词和模型选择通过 Zustand persist 保存到当前浏览器 `localStorage`
 - 多选模型并行运行，结果以响应式多宫格展示
 - 每张结果卡右上角支持放大预览
 - 生成结果使用 DOMPurify 清理，并在无脚本权限的 sandbox iframe 中渲染
 - 无密钥时可打开「演示模式」预览完整体验
+- 支持暗黑、明亮、跟随系统三种主题，以及中文 / English 切换
 - 支持提示词模板、快捷键 `⌘/Ctrl + Enter` 和 `⌘/Ctrl + K`
 
 ## 技术栈
 
 - TypeScript + Vite + React
+- Tailwind CSS v4：全部界面样式与响应式布局
 - Zustand：本地持久化状态
 - React Hook Form + Zod：提供商表单校验
 - Radix UI：Dialog、Popover、Switch
 - TanStack Query：异步生成任务状态
+- i18next / react-i18next：中文与英文
 - Lucide React：图标
 - OpenAI 官方 SDK、Anthropic 官方 SDK、Google `@google/genai` 官方 SDK
 - OpenRouter 通过 OpenAI 官方 SDK 的兼容接口调用
@@ -49,7 +53,7 @@ pnpm run preview
 1. 选择接口协议
 2. 填写 Base URL（如果默认值不合适）
 3. 填入个人 API Key
-4. 每行填写一个模型 ID
+4. 点击「获取模型」通过官方 SDK 读取模型列表；如果服务不支持模型列表接口，再手动填写模型 ID（每行一个）
 
 保存后，回到 Studio 的「对比模型」选择器中勾选一个或多个模型。
 
@@ -71,9 +75,11 @@ pnpm run preview
 
 ```text
 src/
-├── api.ts                    # 官方 SDK 适配与 HTML 清理
+├── api.ts                    # 官方 SDK 生成、模型列表与 HTML 清理
 ├── demo.ts                   # 无密钥演示结果
 ├── prompts.ts                # 页面生成系统提示词与模板
+├── i18n.ts                  # 中英文资源
+├── index.css                # Tailwind 入口与主题变量
 ├── store.ts                  # Zustand + localStorage
 ├── types.ts                  # 领域类型与默认提供商
 ├── App.tsx                   # 页面编排与生成任务

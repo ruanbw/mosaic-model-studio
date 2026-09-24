@@ -1,0 +1,70 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: 'Space Grotesk', Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'DM Mono', ui-monospace, SFMono-Regular, monospace;
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-soft: var(--surface-soft);
+  --color-surface-hover: var(--surface-hover);
+  --color-sidebar: var(--sidebar);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-mint: var(--mint);
+  --color-violet: var(--violet);
+  --color-orange: var(--orange);
+  --color-red: var(--red);
+  --color-yellow: var(--yellow);
+}
+
+:root {
+  color-scheme: dark;
+  --canvas: #0d0f13;
+  --surface: #171a20;
+  --surface-soft: #1b1f26;
+  --surface-hover: #20252d;
+  --sidebar: #111318;
+  --line: #2a2f38;
+  --line-soft: #22262d;
+  --ink: #f0f1ed;
+  --muted: #969b9f;
+  --faint: #666d75;
+  --mint: #a4efc7;
+  --violet: #c6b4ff;
+  --orange: #f3b58b;
+  --red: #f18c91;
+  --yellow: #f2d58b;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --canvas: #f4f6f3;
+  --surface: #ffffff;
+  --surface-soft: #f7f9f6;
+  --surface-hover: #edf2ee;
+  --sidebar: #ffffff;
+  --line: #d5ddd7;
+  --line-soft: #e4e9e5;
+  --ink: #18211c;
+  --muted: #68756d;
+  --faint: #8b978f;
+  --mint: #2e9a68;
+  --violet: #725ac4;
+  --orange: #b86e3b;
+  --red: #c34e57;
+  --yellow: #9b7622;
+}
+
+@layer base {
+  * { @apply border-line; }
+  html { @apply min-w-80 bg-canvas; }
+  body { @apply min-h-screen bg-canvas font-sans text-ink antialiased; }
+  button, input, textarea, select { font: inherit; }
+  button { @apply cursor-pointer; }
+  button:disabled { @apply cursor-not-allowed opacity-50; }
+  ::selection { background: color-mix(in srgb, var(--mint) 28%, transparent); }
+}

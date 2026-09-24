@@ -1,65 +1,10 @@
 import { CheckCircle2, Database, Info, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { Provider } from '../types'
 
-interface SettingsViewProps {
-  providers: Provider[]
-  promptLength: number
-  selectedCount: number
-  onRestore: () => void
-  onClear: () => void
-}
+interface SettingsViewProps { providers: Provider[]; promptLength: number; selectedCount: number; onRestore: () => void; onClear: () => void }
 
 export function SettingsView({ providers, promptLength, selectedCount, onRestore, onClear }: SettingsViewProps) {
-  return (
-    <div className="page-content settings-page">
-      <div className="page-header">
-        <div>
-          <p className="eyebrow">03 / PREFERENCES</p>
-          <h1>Settings</h1>
-          <p className="page-subtitle">管理本地工作区状态和生成偏好。</p>
-        </div>
-      </div>
-
-      <div className="settings-grid">
-        <section className="settings-card">
-          <div className="settings-card-heading">
-            <div className="settings-icon mint"><Database size={18} /></div>
-            <div><h2>本地数据</h2><p>所有配置都保存在当前浏览器的 localStorage。</p></div>
-          </div>
-          <div className="settings-stat-list">
-            <div><span>提供商</span><strong>{providers.length}</strong></div>
-            <div><span>已配置密钥</span><strong>{providers.filter((provider) => provider.apiKey).length}</strong></div>
-            <div><span>已选模型</span><strong>{selectedCount}</strong></div>
-            <div><span>提示词长度</span><strong>{promptLength}</strong></div>
-          </div>
-          <div className="settings-actions">
-            <button className="button secondary" type="button" onClick={onRestore}><RotateCcw size={15} />恢复默认配置</button>
-            <button className="button danger-ghost" type="button" onClick={onClear}><Trash2 size={15} />清除本地配置</button>
-          </div>
-        </section>
-
-        <section className="settings-card security-settings-card">
-          <div className="settings-card-heading">
-            <div className="settings-icon violet"><ShieldCheck size={18} /></div>
-            <div><h2>安全边界</h2><p>这是个人 BYOK 工具，不是生产密钥托管服务。</p></div>
-          </div>
-          <div className="security-check-list">
-            <div><CheckCircle2 size={16} /><span>密钥仅保存于本机浏览器</span></div>
-            <div><CheckCircle2 size={16} /><span>模型输出在 sandbox iframe 中预览</span></div>
-            <div><CheckCircle2 size={16} /><span>生成前可逐个确认模型</span></div>
-          </div>
-          <div className="info-callout"><Info size={15} /><p>生产环境请使用后端代理、限制额度，并避免把高价值密钥放进浏览器。</p></div>
-        </section>
-      </div>
-
-      <div className="settings-shortcuts">
-        <div className="subsection-heading"><div><h2>快捷键</h2><span>让提示词流保持在你的节奏里</span></div></div>
-        <div className="shortcut-list">
-          <div><span>运行生成</span><kbd>⌘</kbd><kbd>↵</kbd></div>
-          <div><span>关闭弹窗 / 预览</span><kbd>Esc</kbd></div>
-          <div><span>添加提供商</span><kbd>⌘</kbd><kbd>K</kbd></div>
-        </div>
-      </div>
-    </div>
-  )
+  const { t } = useTranslation()
+  return <div className="mx-auto w-full max-w-[1120px] px-4 pb-20 pt-[52px] max-[580px]:px-[15px] max-[580px]:pt-8"><div className="mb-9"><p className="eyebrow mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-faint">03 / PREFERENCES</p><h1 className="m-0 text-[39px] font-medium tracking-[-0.06em] max-[580px]:text-[34px]">Settings</h1><p className="mt-2 text-[13px] text-muted">{t('settings.subtitle')}</p></div><div className="grid gap-3.5 max-[820px]:grid-cols-1"><section className="rounded-[10px] border border-[#2d333b] bg-surface p-5"><div className="flex items-start gap-2.5 border-b border-line-soft pb-4"><div className="grid size-8 shrink-0 place-items-center rounded-lg bg-mint/10 text-mint"><Database size={18} /></div><div><h2 className="mt-0.5 mb-1.5 text-[15px] font-medium">{t('settings.localData')}</h2><p className="m-0 text-[11px] leading-[1.45] text-[#737b82]">{t('settings.localCopy')}</p></div></div><div className="my-4 grid grid-cols-2 gap-px overflow-hidden rounded-[7px] border border-line-soft bg-line-soft"><div className="flex flex-col gap-1.5 bg-surface-soft p-3"><span className="text-[10px] text-muted">{t('settings.providerCount')}</span><strong className="font-mono text-[15px] font-medium text-ink">{providers.length}</strong></div><div className="flex flex-col gap-1.5 bg-surface-soft p-3"><span className="text-[10px] text-muted">{t('settings.configuredCount')}</span><strong className="font-mono text-[15px] font-medium text-ink">{providers.filter((provider) => provider.apiKey).length}</strong></div><div className="flex flex-col gap-1.5 bg-surface-soft p-3"><span className="text-[10px] text-muted">{t('settings.selectedCount')}</span><strong className="font-mono text-[15px] font-medium text-ink">{selectedCount}</strong></div><div className="flex flex-col gap-1.5 bg-surface-soft p-3"><span className="text-[10px] text-muted">{t('settings.promptLength')}</span><strong className="font-mono text-[15px] font-medium text-ink">{promptLength}</strong></div></div><div className="flex flex-wrap gap-2 max-[580px]:flex-col"><button className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[#353b44] bg-surface-soft px-3 text-[11px] font-semibold text-ink transition-colors hover:bg-surface-hover" type="button" onClick={onRestore}><RotateCcw size={15} />{t('settings.restore')}</button><button className="inline-flex min-h-9 items-center gap-2 rounded-md border border-red/25 bg-transparent px-3 text-[11px] font-semibold text-red transition-colors hover:bg-red/10" type="button" onClick={onClear}><Trash2 size={15} />{t('settings.clear')}</button></div></section><section className="rounded-[10px] border border-[#2d333b] bg-surface p-5"><div className="flex items-start gap-2.5 border-b border-line-soft pb-4"><div className="grid size-8 shrink-0 place-items-center rounded-lg bg-violet/10 text-violet"><ShieldCheck size={18} /></div><div><h2 className="mt-0.5 mb-1.5 text-[15px] font-medium">{t('settings.security')}</h2><p className="m-0 text-[11px] leading-[1.45] text-[#737b82]">{t('settings.securityCopy')}</p></div></div><div className="grid gap-3.5 py-4"><div className="flex items-center gap-2 text-[11px] text-[#b2b8b7]"><CheckCircle2 className="text-mint" size={16} /><span>{t('settings.localOnly')}</span></div><div className="flex items-center gap-2 text-[11px] text-[#b2b8b7]"><CheckCircle2 className="text-mint" size={16} /><span>{t('settings.sandbox')}</span></div><div className="flex items-center gap-2 text-[11px] text-[#b2b8b7]"><CheckCircle2 className="text-mint" size={16} /><span>{t('settings.confirm')}</span></div></div><div className="flex items-start gap-2 rounded-md border border-yellow/15 bg-yellow/7 p-2.5 text-[#9d9277]"><Info className="mt-px shrink-0 text-yellow" size={15} /><p className="m-0 text-[10px] leading-[1.5]">{t('settings.warning')}</p></div></section></div><div className="mt-10"><div className="mb-4"><h2 className="m-0 text-base font-medium tracking-[-0.02em]">{t('settings.shortcuts')}</h2><span className="mt-1 block text-[11px] text-faint">{t('settings.shortcutCopy')}</span></div><div className="grid gap-2.5 max-[580px]:grid-cols-1"><div className="flex items-center gap-1.5 rounded-[7px] border border-line-soft bg-surface px-3 py-3 text-[11px] text-[#858d92]"><span className="flex-1">{t('settings.run')}</span><kbd className="min-w-[22px] rounded border border-[#3b424a] bg-[#252a31] px-1.5 py-1 text-center font-mono text-[9px] text-[#9da5a8]">⌘</kbd><kbd className="min-w-[22px] rounded border border-[#3b424a] bg-[#252a31] px-1.5 py-1 text-center font-mono text-[9px] text-[#9da5a8]">↵</kbd></div><div className="flex items-center gap-1.5 rounded-[7px] border border-line-soft bg-surface px-3 py-3 text-[11px] text-[#858d92]"><span className="flex-1">{t('settings.close')}</span><kbd className="min-w-[22px] rounded border border-[#3b424a] bg-[#252a31] px-1.5 py-1 text-center font-mono text-[9px] text-[#9da5a8]">Esc</kbd></div><div className="flex items-center gap-1.5 rounded-[7px] border border-line-soft bg-surface px-3 py-3 text-[11px] text-[#858d92]"><span className="flex-1">{t('settings.add')}</span><kbd className="min-w-[22px] rounded border border-[#3b424a] bg-[#252a31] px-1.5 py-1 text-center font-mono text-[9px] text-[#9da5a8]">⌘</kbd><kbd className="min-w-[22px] rounded border border-[#3b424a] bg-[#252a31] px-1.5 py-1 text-center font-mono text-[9px] text-[#9da5a8]">K</kbd></div></div></div></div>
 }
