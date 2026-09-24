@@ -1,160 +1,325 @@
 # Mosaic · Model Studio
 
-一个在浏览器中运行的自然语言多模型工作台：用同一段提示词选择多个模型，并行生成和比较结果。产品支持两类输出：
+[简体中文](#简体中文) | [English](#english)
 
-- **静态页面**：清理后继续放在受限的安全沙箱中预览。
-- **Vite 交互工程**：在页面内启动**单个 WebContainer** 预览，运行依赖安装、Vite 开发服务器和交互界面。
+Mosaic 是一个浏览器内的多模型工作台：使用同一段提示词选择多个模型，并行生成、比较和预览结果。
 
-WebContainer 用于浏览器内的工程预览，不是生产应用后端，也不能替代服务端运行时、数据库、任务队列或密钥管理。
+- **静态页面**：经过 DOMPurify 清理，并在受限 iframe 中预览。
+- **Vite 交互工程**：通过单个 WebContainer 在浏览器中安装依赖并运行。
 
-## 功能
+> WebContainer 仅用于浏览器内工程预览，不是生产后端，也不能替代服务端运行时、数据库、任务队列或密钥管理。
 
-- 添加、编辑、删除多个模型提供商
-- 支持 OpenAI、Anthropic、Google Gemini、OpenRouter 兼容接口和自定义 OpenAI-compatible Base URL
-- 通过各官方 SDK 的模型列表接口自动获取可用模型；手动输入作为不支持模型列表时的兜底
-- API Key、提供商、模型、提示词和模型选择通过 Zustand persist 保存到当前浏览器 `localStorage`
-- 多选模型并行生成静态页面或 Vite 工程，并以响应式多宫格展示结果
-- 静态结果使用 DOMPurify 清理，并在无脚本权限的 sandbox iframe 中渲染
-- 交互工程共用一个 WebContainer；切换或替换工程时复用该实例
-- 无密钥时可打开「演示模式」预览完整体验
-- 支持暗黑、明亮、跟随系统三种主题，以及中文 / English 切换
-- 支持提示词模板、快捷键 `⌘/Ctrl + Enter` 和 `⌘/Ctrl + K`
+---
 
-## 技术栈
+## 简体中文
 
-- TypeScript + Vite + React
-- WebContainer：Vite 工程的浏览器内 Node.js 运行环境
-- Tailwind CSS v4：全部界面样式与响应式布局
-- Zustand：本地持久化状态
-- React Hook Form + Zod：提供商表单校验
-- Radix UI：Dialog、Popover、Switch
-- TanStack Query：异步生成任务状态
-- i18next / react-i18next：中文与 English
-- Lucide React：图标
-- OpenAI 官方 SDK、Anthropic 官方 SDK、Google `@google/genai` 官方 SDK（按 provider 类型动态 import，首次获取模型或生成时才加载）
-- OpenRouter 通过 OpenAI 官方 SDK 的兼容接口调用
-- DOMPurify：模型输出 HTML 清理
+### 功能
 
-## 开始使用
+- 添加、编辑和删除 OpenAI、Anthropic、Google Gemini、OpenRouter 及自定义 OpenAI-compatible Provider
+- 从 Provider 获取模型列表，也支持手动输入模型 ID
+- 多选模型并行生成，结果支持排序、状态筛选、预览、重试和完整工程导出
+- API Key、Provider、模型、提示词和选择状态保存在浏览器 `localStorage`
+- 静态结果使用 DOMPurify、宿主 CSP、`sandbox=""` 和 `no-referrer`
+- 交互工程复用一个 WebContainer，并提供启动阶段、日志、停止和重试
+- 无密钥 Demo 模式
+- Dark / Light / System 主题与中文 / English 界面
+- Vitest 单元测试与 Playwright 核心 UI 流程测试
+- 提示词模板以及 `⌘/Ctrl + Enter`、`⌘/Ctrl + K` 快捷键
 
-环境要求：Node.js 22+、pnpm 12+，并使用支持 WebContainer 和跨源隔离的现代浏览器。
+### 技术栈
+
+- TypeScript、Vite、React 19
+- Tailwind CSS v4、Radix UI、Lucide React
+- Zustand、React Hook Form、Zod、TanStack Query
+- i18next / react-i18next
+- OpenAI、Anthropic、Google GenAI SDK（按 Provider 动态加载）
+- DOMPurify、WebContainer
+- Vitest、Playwright
+
+### 本地开发
+
+环境要求：Node.js 22+、pnpm 12+，以及支持 WebContainer / SharedArrayBuffer 的现代浏览器。
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-打开终端输出的本地地址即可。生产构建与本地预览：
+质量检查：
 
 ```bash
 pnpm test
-pnpm run typecheck
 pnpm run typecheck:test
+pnpm run typecheck
 pnpm run build
+pnpm exec playwright install chromium
+pnpm test:e2e
+```
+
+生产预览：
+
+```bash
 pnpm run preview
 ```
 
-`pnpm test` 运行仓库中的 Vitest Node 单元测试；`pnpm run typecheck`/`pnpm run typecheck:test` 检查应用与测试相关的 TypeScript，`pnpm run build` 验证 Vite 生产构建。仓库还提供 `playwright.config.ts`、`e2e/app.spec.ts` 和 `pnpm test:e2e`，覆盖响应式、主题、Provider Dialog 焦点、demo 静态预览和取消流程；运行前需安装 Chromium，并将真实 Provider CORS、WebContainer 网络和最终部署 URL 纳入 staging 验收。
-
-Vite 的开发服务器和 `preview` 都会返回跨源隔离响应头。WebContainer 首次启动以及 Vite 工程首次安装依赖时需要下载和准备工作，因此交互预览可能比静态页面慢；后续复用同一实例不代表可以绕过网络、浏览器或许可证限制。
-
 ### 环境变量
 
-复制 `.env.example` 为本地环境文件后，可按需设置：
+复制 `.env.example`：
 
 ```dotenv
 VITE_WEBCONTAINER_API_KEY=
 ```
 
-所有 `VITE_` 变量都会进入客户端构建产物。若 WebContainer 服务要求 key，只能使用为其签发的受限客户端 key，并遵守对应配额和 origin 限制；**绝不能把 OpenAI、Anthropic、Google 或其他 provider 的服务端密钥写入 `VITE_` 变量**。Provider key 仍属于后文所述的 BYOK 风险。
+所有 `VITE_` 变量都会进入客户端产物。该变量只能使用受限的 WebContainer 客户端 key，绝不能放 Provider 服务端密钥。
 
-## 预览模式与浏览器要求
+### Provider 配置
 
-### 静态页面
+1. 打开 **Providers** 页面。
+2. 添加 Provider，选择协议并填写 Base URL。
+3. 输入个人 API Key。
+4. 点击 **获取模型**，或手动填写模型 ID。
+5. 返回 Studio，选择一个或多个模型并生成。
 
-静态 HTML 先经过 DOMPurify 清理，再由 `sandbox` iframe 渲染。该路径不需要启动 Node.js，适合快速、安全地检查页面外观和基础行为。
+| 协议 | 默认 Base URL | 默认 Origin |
+| --- | --- | --- |
+| OpenAI | `https://api.openai.com/v1` | `https://api.openai.com` |
+| Anthropic | `https://api.anthropic.com` | `https://api.anthropic.com` |
+| Google Gemini | `https://generativelanguage.googleapis.com` | `https://generativelanguage.googleapis.com` |
+| OpenAI-compatible | `https://openrouter.ai/api/v1` | `https://openrouter.ai` |
 
-### Vite 交互工程
+### 取消、重试和历史
 
-需要依赖、Vite 开发服务器或客户端交互的工程由 WebContainer 运行。整个页面只允许一个活动 WebContainer：打开新工程前应停止或替换旧工程，不能为每张结果卡并行创建实例。预览生命周期和安全边界见 [`docs/webcontainer.md`](docs/webcontainer.md)。
+- 每批生成最多同时运行 3 个模型请求。
+- “停止”会中止未完成请求，将结果标记为“已取消”，并阻止迟到响应覆盖结果。
+- 重试优先使用该结果保存的 prompt 和 Demo 模式。
+- 最近的运行记录保存在版本化、限量化的本地历史中，可恢复输入或清空。
 
-WebContainer 依赖跨源隔离能力。仓库中的 Vite 配置为开发服务器和预览服务器设置：
+### 浏览器与安全
+
+WebContainer 需要跨源隔离。开发和 `vite preview` 已配置：
 
 ```text
 Cross-Origin-Opener-Policy: same-origin
 Cross-Origin-Embedder-Policy: credentialless
 ```
 
-自建部署也必须在**最终公开 HTML 响应**上保留等价响应头；只配置 Vite 开发服务器、只检查重定向前的响应，或让 CDN 覆盖/删除响应头都不够。生产使用 HTTPS，并在修改代理后清理 CDN 缓存。若浏览器、扩展、反向代理、跨域资源或内容安全策略阻止 WebContainer 启动，静态沙箱仍可工作，但交互工程无法运行。部署头、最终 URL 检查和故障排查见 [`docs/webcontainer.md`](docs/webcontainer.md)。
+生产环境也必须保留等价响应头。`vercel.json` 已为所有 Vercel 响应配置这些头。
 
-## 配置模型提供商
+Mosaic 是 BYOK 工具，不是生产密钥库。Provider key 保存在浏览器并直接发送给 Provider；请使用测试 key、设置额度并定期轮换。模型输出和 WebContainer 工程均应视为不可信代码。
 
-进入右侧 **Providers** 页面，点击「添加提供商」：
+### Vercel 部署与自动更新
 
-1. 选择接口协议
-2. 填写 Base URL（如果默认值不合适）
-3. 填入个人 API Key
-4. 点击「获取模型」通过官方 SDK 读取模型列表；如果服务不支持模型列表接口，再手动填写模型 ID（每行一个）
+仓库包含 `vercel.json`，固定：
 
-保存后，回到 Studio 的「对比模型」选择器中勾选一个或多个模型。
+- Framework：Vite
+- Install：`pnpm install --frozen-lockfile`
+- Build：`pnpm run build`
+- Output：`dist`
+- COOP / COEP / Permissions Policy 响应头
 
-Provider SDK 会根据协议按需动态加载：获取模型列表和发起生成请求时才加载对应的 OpenAI、Anthropic 或 `@google/genai` chunk；首屏不会同时下载三套 SDK。OpenRouter 仍复用 OpenAI SDK 的兼容接口。动态 chunk 的文件名由 Vite 决定，部署时不要依赖固定文件名，并应保证这些 chunk 能被 CDN 正常提供。
+GitHub 仓库已关联 Vercel 项目，生产分支为 `main`：
 
-Provider 的默认地址如下；origin 不包含路径中的 `/v1` 或 `/v1beta`。自定义 Base URL 会替换默认地址，浏览器仍从最终应用 origin 直连 Provider，因此必须验证目标服务的 CORS 策略：
+- 每次 push 到 `main`：自动创建 Production Deployment
+- 其他分支 push / PR：自动创建 Preview Deployment
+- 无需再次运行 `vercel --prod`
 
-| 协议 | 默认 Base URL | 默认 origin |
+首次 CLI 关联命令：
+
+```bash
+vercel link --yes --project mosaic-model-studio --scope ruanbws-projects
+vercel git connect https://github.com/ruanbw/mosaic-model-studio
+vercel --prod
+```
+
+部署后建议检查：
+
+```bash
+curl -I https://<your-deployment>.vercel.app
+```
+
+确认响应包含 `Cross-Origin-Opener-Policy: same-origin` 和 `Cross-Origin-Embedder-Policy: credentialless`。
+
+### 当前限制
+
+- Vitest 是 Node 环境单元测试，不能替代真实 Provider CORS / WebContainer 验收。
+- Playwright 覆盖本地 demo 和 UI 流程，不使用真实 Provider key。
+- BYOK key 仍暴露给同源脚本；生产多租户应用应使用认证后端代理。
+- WebContainer 运行时许可证、配额和商业生产条款需单独确认。
+
+### 目录
+
+```text
+src/
+├── api.ts                 # Provider SDK 与生成请求
+├── App.tsx                # Studio 编排、取消、比较和历史
+├── store.ts               # Zustand 持久化
+├── project/               # 归一化、导出、历史
+├── webcontainer/          # WebContainer 生命周期
+├── components/            # UI、Provider、结果与预览
+└── *.test.ts              # Vitest 单元测试
+
+e2e/                      # Playwright 核心流程
+docs/webcontainer.md      # WebContainer 安全与部署说明
+vercel.json               # Vercel 构建及响应头
+```
+
+---
+
+## English
+
+Mosaic is a browser-based multi-model workspace. It sends one prompt to several models in parallel, then helps you compare, preview, retry, and export their results.
+
+- **Static pages** are sanitized with DOMPurify and rendered inside a restricted iframe.
+- **Vite projects** run through one shared WebContainer in the browser.
+
+> WebContainer is a browser preview runtime, not a production backend. It does not replace server runtimes, databases, queues, or secret management.
+
+### Features
+
+- Add, edit, and remove OpenAI, Anthropic, Google Gemini, OpenRouter, and custom OpenAI-compatible providers
+- Discover models through provider APIs or enter model IDs manually
+- Run several models in parallel, then sort, filter, preview, retry, and export results
+- Persist provider settings, API keys, prompts, model selection, and run history in browser `localStorage`
+- Isolate static output with DOMPurify, a host CSP, `sandbox=""`, and `no-referrer`
+- Reuse one WebContainer with staged status, logs, stop, and retry controls
+- Run the complete UI without provider keys in Demo mode
+- Dark, Light, and System themes with Chinese and English UI
+- Vitest unit tests and Playwright core UI flows
+- Prompt templates plus `⌘/Ctrl + Enter` and `⌘/Ctrl + K`
+
+### Stack
+
+- TypeScript, Vite, React 19
+- Tailwind CSS v4, Radix UI, Lucide React
+- Zustand, React Hook Form, Zod, TanStack Query
+- i18next / react-i18next
+- OpenAI, Anthropic, and Google GenAI SDKs loaded per provider
+- DOMPurify and WebContainer
+- Vitest and Playwright
+
+### Local development
+
+Requirements: Node.js 22+, pnpm 12+, and a modern browser that supports WebContainer / SharedArrayBuffer.
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Quality checks:
+
+```bash
+pnpm test
+pnpm run typecheck:test
+pnpm run typecheck
+pnpm run build
+pnpm exec playwright install chromium
+pnpm test:e2e
+```
+
+Production preview:
+
+```bash
+pnpm run preview
+```
+
+### Environment variables
+
+Copy `.env.example`:
+
+```dotenv
+VITE_WEBCONTAINER_API_KEY=
+```
+
+Every `VITE_` variable is exposed to the client. Use only a restricted WebContainer client key, never a provider server key.
+
+### Provider setup
+
+1. Open **Providers**.
+2. Add a provider, choose its protocol, and enter a Base URL.
+3. Enter a personal API key.
+4. Click **Fetch models**, or enter model IDs manually.
+5. Return to Studio, select models, and generate.
+
+| Protocol | Default Base URL | Default origin |
 | --- | --- | --- |
 | OpenAI | `https://api.openai.com/v1` | `https://api.openai.com` |
 | Anthropic | `https://api.anthropic.com` | `https://api.anthropic.com` |
 | Google Gemini | `https://generativelanguage.googleapis.com` | `https://generativelanguage.googleapis.com` |
-| OpenAI-compatible（默认 OpenRouter） | `https://openrouter.ai/api/v1` | `https://openrouter.ai` |
+| OpenAI-compatible | `https://openrouter.ai/api/v1` | `https://openrouter.ai` |
 
-### 取消与重试
+### Cancellation, retry, and history
 
-- 一次生成批次共享一个 `AbortController`，最多同时运行 3 个模型请求。生成期间的“停止”会中止本批次尚未完成的请求，把排队/运行中的结果标为“已取消”，并使迟到响应失效；已经成功的结果不会被回滚。
-- 失败或取消结果卡上的“重试”只针对同一个 provider/model，启动一次全新的运行（demo 模式仍不调用 API）并优先使用该结果保存的 prompt 与演示模式输入。它会替换原卡、保留其他结果，不续传部分输出，也不会自动重试其他模型；生成进行中重试按钮不可用。
-- OpenAI 与 Anthropic SDK 配置了 `maxRetries: 1` 的传输层重试，这不等同于结果卡上的“重试”；取消或网络超时发生在供应商已接收请求之后，仍可能产生一次额外请求或费用。Gemini 的重试细节由所用 SDK 版本决定。
-- 关闭或移除预览、停止 WebContainer 只停止工程运行时，不会撤销已经发出的模型请求。Provider 对话框关闭、字段改变或删除时也会取消正在进行的模型列表请求，迟到结果不会覆盖表单。WebContainer 的停止、替换和重新打开按单实例状态机串行清理，详见 [`docs/webcontainer.md`](docs/webcontainer.md)。
+- Each run uses at most three concurrent model requests.
+- Stop aborts unfinished requests, marks them as cancelled, and prevents late responses from overwriting results.
+- Retry uses the prompt and Demo mode saved with that result.
+- Recent runs are stored in a versioned, bounded local history that can restore inputs or be cleared.
 
-## 安全与生产边界
+### Browser and security requirements
 
-这是一个 **BYOK（Bring Your Own Key）工具**，不是生产环境的密钥托管方案。浏览器 `localStorage` 对同源 JavaScript 可读，前端加密也不能抵御 XSS。官方供应商也不建议把服务端密钥暴露在客户端。`VITE_WEBCONTAINER_API_KEY` 同样会公开给客户端，不能被当作秘密。
+WebContainer requires cross-origin isolation. Development and `vite preview` use:
 
-建议：
+```text
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: credentialless
+```
 
-- 使用独立的测试密钥、低额度项目和明确的消费上限
-- 定期撤销或轮换密钥
-- 仅在可信的个人浏览器环境中使用
-- 生产部署前增加自己的后端代理、认证、限流、额度控制和服务端密钥管理
-- 供应商是否允许浏览器直连取决于其 CORS 策略；如果遇到跨域错误，应使用后端代理，而不是把密钥写进前端代码
+Production must preserve equivalent headers. `vercel.json` applies them to all Vercel responses.
 
-模型输出会被视为不可信内容。归一化后的静态结果会经过 DOMPurify、宿主生成的固定 CSP `meta`、`sandbox=""` iframe 和 `referrerPolicy="no-referrer"` 隔离，仍不要把它当作可信代码直接部署。当前固定策略包含 `default-src 'none'`、`script-src 'none'`、`connect-src 'none'`，禁止脚本、网络、frame、worker 和外部资源；它是纵深防御，不是完整安全审计。demo fixture 是可信的本地示例，不等同于不可信模型输出。生产若统一设置 CSP，必须分别验证静态预览和 WebContainer 预览，不能用移除 sandbox 的方式排错；不要把静态策略未经测试地复制到主应用。WebContainer 提供浏览器内的 Node.js 兼容运行环境，不代表代码通过了生产安全审计；生成的工程仍可能消耗配额、访问网络或包含有漏洞的依赖。WebContainer 不是生产后端，不要用它承载生产 API、持久数据或保密服务。
+Mosaic is a BYOK tool, not a production secret vault. Provider keys are stored in the browser and sent directly to the selected provider. Use test keys, enforce quotas, and rotate them regularly. Treat model output and WebContainer projects as untrusted code.
 
-## POC 与商业生产许可
+### Vercel deployment and automatic updates
 
-本仓库当前面向 **POC、开发验证和内部评估**。POC 中使用 WebContainer，不代表可以把它直接用于商业生产。StackBlitz 官方要求商业生产使用具备相应商业许可；正式上线前必须确认使用场景、用户规模和部署方式，并按官方条款取得许可。许可详情见 [StackBlitz WebContainer Enterprise](https://webcontainers.io/enterprise)。
+The repository contains `vercel.json` with:
 
-生产发布还应补齐认证、服务端密钥管理、滥用防护、可观测性、依赖治理，以及供应商和浏览器兼容性评估。
+- Framework: Vite
+- Install: `pnpm install --frozen-lockfile`
+- Build: `pnpm run build`
+- Output: `dist`
+- COOP, COEP, and Permissions Policy headers
 
-## 当前限制与剩余风险
+The GitHub repository is connected to the Vercel project with `main` as the production branch:
 
-- Vitest 目前是 Node 环境单元测试；Playwright 已覆盖本地 demo/UI 流程，但仍不能证明真实 Provider CORS、WebContainer 启动/清理、跨源隔离或计费行为。部署验收必须使用支持 WebContainer 的浏览器和最终 URL。
-- Provider SDK 按需 chunk 首次加载可能受网络、CDN 缓存和 MIME 配置影响；Provider 的模型列表、结构化输出兼容性、CORS 白名单、速率限制和服务端默认地址仍由外部服务决定。
-- BYOK key 保存在浏览器 `localStorage` 并直接从浏览器发送；HTTPS、静态 CSP 和 sandbox 都不能把它变成服务端秘密。传输层自动重试与用户重试都可能造成重复请求或费用。
-- 内置 demo 的静态 fixture 是可信本地内容，不能用来证明不可信模型输出已经经过完整归一化；生产 CDN/代理还必须自行保留 COOP/COEP、配置适合主应用和 WebContainer 的 CSP，并在修改后清理缓存。
-- WebContainer 运行时、生成代码和安装依赖仍可能访问网络、消耗配额或包含漏洞；商业使用、浏览器支持、托管响应头和运行时许可证需要在发布前单独确认。
+- Every push to `main` creates a Production Deployment automatically.
+- Other branch pushes and pull requests create Preview Deployments.
+- You do not need to run `vercel --prod` again.
 
-## 目录结构
+Initial CLI linking commands:
+
+```bash
+vercel link --yes --project mosaic-model-studio --scope ruanbws-projects
+vercel git connect https://github.com/ruanbw/mosaic-model-studio
+vercel --prod
+```
+
+After deployment, verify:
+
+```bash
+curl -I https://<your-deployment>.vercel.app
+```
+
+The response should include `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: credentialless`.
+
+### Known limitations
+
+- Vitest runs in Node and cannot replace real Provider CORS or WebContainer validation.
+- Playwright covers local demo/UI flows and does not use real provider keys.
+- BYOK keys remain available to same-origin scripts; use an authenticated backend proxy for multi-tenant production.
+- Confirm WebContainer licensing, quotas, and commercial production terms separately.
+
+### Project structure
 
 ```text
 src/
-├── api.ts                    # 官方 SDK 生成、模型列表与 HTML 清理
-├── demo.ts                   # 无密钥演示结果
-├── prompts.ts                # 页面生成系统提示词与模板
-├── i18n.ts                   # 中英文资源
-├── index.css                 # Tailwind 入口与主题变量
-├── store.ts                  # Zustand + localStorage
-├── types.ts                  # 领域类型与默认提供商
-├── App.tsx                   # 页面编排与生成任务
-└── components/               # Studio、Provider、结果预览组件
+├── api.ts                 # Provider SDKs and generation requests
+├── App.tsx                # Studio orchestration, cancellation, comparison, history
+├── store.ts               # Persisted Zustand state
+├── project/               # Normalization, export, history
+├── webcontainer/          # WebContainer lifecycle
+├── components/            # UI, providers, results, previews
+└── *.test.ts              # Vitest unit tests
+
+e2e/                      # Playwright core flows
+docs/webcontainer.md      # WebContainer security and deployment notes
+vercel.json               # Vercel build and response headers
 ```
