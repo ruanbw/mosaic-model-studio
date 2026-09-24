@@ -53,7 +53,12 @@ export function ResultCard({ result, onExpand, onRetry, onRemove, busy }: Result
 
   const copyError = () => copyText(errorMessage, t('results.copy'))
   const exportProject = () => {
-    if (webProject) downloadProjectBundle(webProject)
+    if (!project) return
+    try {
+      downloadProjectBundle(project)
+    } catch {
+      toast.error(t('results.exportError'))
+    }
   }
 
   return (
@@ -155,7 +160,7 @@ export function ResultCard({ result, onExpand, onRetry, onRemove, busy }: Result
         <span className="min-w-0 break-words [overflow-wrap:anywhere]">{result.elapsedMs ? `${(result.elapsedMs / 1000).toFixed(1)}s` : '—'}</span>
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           {result.status === 'success' && !isWebProject && result.html && <button className="inline-flex min-h-10 items-center gap-1.5 rounded-md px-2 text-[#aeb5b6] transition-colors hover:bg-[#252b33] hover:text-ink" type="button" onClick={() => onExpand(result)} aria-label={`${t('results.expand')} ${result.model}`} title={t('results.expand')}><Expand size={15} />{t('results.expand')}</button>}
-          {isWebProject && <button className="grid min-h-10 min-w-10 place-items-center rounded-md text-[#858d93] transition-colors hover:bg-surface-hover hover:text-ink" type="button" onClick={exportProject} aria-label={`${t('results.exportProject')} ${result.model}`} title={t('results.exportProject')}><Download size={15} /></button>}
+          {result.status === 'success' && hasProject && <button className="grid min-h-10 min-w-10 place-items-center rounded-md text-[#858d93] transition-colors hover:bg-surface-hover hover:text-ink" type="button" onClick={exportProject} aria-label={`${isWebProject ? t('results.exportProject') : t('results.exportStatic')} ${result.model}`} title={isWebProject ? t('results.exportProject') : t('results.exportStatic')}><Download size={15} /></button>}
           <button className="grid min-h-10 min-w-10 place-items-center rounded-md text-[#858d93] transition-colors hover:bg-surface-hover hover:text-ink disabled:opacity-50" type="button" onClick={copyResult} disabled={!result.html && !project} aria-label={isWebProject ? t('results.copyProjectLabel') : t('results.copyLabel')} title={isWebProject ? t('results.copyProjectLabel') : t('results.copyLabel')}><Copy size={15} /></button>
           <button className="grid min-h-10 min-w-10 place-items-center rounded-md text-[#858d93] transition-colors hover:bg-red/10 hover:text-red" type="button" onClick={() => onRemove(result.id)} disabled={busy || isBusy} aria-label={t('results.remove')} title={t('results.remove')}><Trash2 size={15} /></button>
         </div>

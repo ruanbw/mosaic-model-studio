@@ -420,6 +420,7 @@ export const createProjectRuntimeFiles = (project: GeneratedProject): Record<str
   if (project.kind === 'static') {
     const index = normalizedFiles.find((file) => file.path === 'index.html')
     if (!index) throw new Error('Static 项目缺少 index.html')
+    if (normalizedFiles.length !== 1) throw new Error('Static 项目只能包含 index.html')
     return { 'index.html': createStaticPreviewDocument(index.content, project.title) }
   }
 
@@ -427,8 +428,7 @@ export const createProjectRuntimeFiles = (project: GeneratedProject): Record<str
     throw new Error('Web 项目必须包含 src/main.tsx')
   }
 
-  const files: Record<string, string> = {}
-  for (const file of normalizedFiles) files[file.path] = file.content
+  const files = Object.fromEntries(normalizedFiles.map((file) => [file.path, file.content]))
   // Scaffold files are applied last so model output can never override host policy.
   for (const [path, content] of Object.entries(WEB_SCAFFOLD)) files[path] = content
   return files

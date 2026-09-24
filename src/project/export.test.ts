@@ -1,3 +1,4 @@
+import { strFromU8, unzipSync } from 'fflate'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('dompurify', () => ({
@@ -6,7 +7,7 @@ vi.mock('dompurify', () => ({
   },
 }))
 
-import { createProjectExportFiles } from './export'
+import { createProjectExportFiles, createProjectZip } from './export'
 import { createProjectRuntimeFiles, STATIC_PREVIEW_CSP } from './normalize'
 import type { GeneratedProject, ProjectFile } from './types'
 
@@ -50,6 +51,70 @@ describe('createProjectExportFiles', () => {
     expect(exportFiles['vite.config.ts']).toContain("host: '0.0.0.0'")
     expect(exportFiles['index.html']).toContain('<div id="root"></div>')
     expect(exportFiles['tsconfig.json']).toContain('"moduleResolution": "Bundler"')
+  })
+
+  it('packages static projects as a ZIP that can be opened from the file system', () => {
+    const project: GeneratedProject = {
+      schemaVersion: 1,
+      kind: 'static',
+      title: 'Static page',
+      summary: '',
+      files: [{
+        path: 'index.html',
+        content: '<!doctype html><html><head><title>Model title</title></head><body><main>Hello</main></body></html>',
+      }],
+    }
+
+    const archive = unzipSync(createProjectZip(project))
+    const indexPath = 'Static-page/index.html'
+    expect(Object.keys(archive)).toEqual([indexPath])
+    expect(strFromU8(archive[indexPath]!)).toContain('<main>Hello</main>')
+  })
+
+  it('packages web projects with their source files, scaffold, and run instructions', () => {
+    const project = createWebProject()
+    const archive = unzipSync(createProjectZip(project))
+    const files = createProjectExportFiles(project)
+
+    expect(Object.keys(archive)).toEqual(expect.arrayContaining([
+      'Generated-app/package.json',
+      'Generated-app/package-lock.json',
+      'Generated-app/index.html',
+      'Generated-app/vite.config.ts',
+      'Generated-app/tsconfig.json',
+      'Generated-app/src/main.tsx',
+      'Generated-app/README.md',
+    ]))
+    expect(strFromU8(archive['Generated-app/src/main.tsx']!)).toBe(files['src/main.tsx'])
+    expect(strFromU8(archive['Generated-app/README.md']!)).toContain('npm ci')
+  })
+
+  it('keeps archive paths safe for hostile project titles', () => {
+    for (const title of ['..', '.', 'CON', 'foo.', 'a/../../b', 'x'.repeat(200)]) {
+      const project = {
+        ...createWebProject([{
+          path: 'src/main.tsx',
+          content: 'export const App = () => null',
+        }]),
+        title,
+      }
+      const archive = unzipSync(createProjectZip(project))
+      const paths = Object.keys(archive)
+
+      expect(paths.length).toBeGreaterThan(0)
+      expect(paths.every((path) => path.split('/').every((segment) => segment !== '.' && segment !== '..' && !segment.includes('\\')))).toBe(true)
+      expect(paths.every((path) => !path.startsWith('/'))).toBe(true)
+      // The title is still present in the generated project; only the archive
+      // directory is sanitized independently for filesystem compatibility.
+      expect(paths.some((path) => path.endsWith('/src/main.tsx'))).toBe(true)
+    }
+  })
+
+  it('rejects archive path conflicts before creating a ZIP', () => {
+    expect(() => createProjectZip(createWebProject([
+      { path: 'src', content: 'not a directory' },
+      { path: 'src/main.tsx', content: 'export const App = () => null' },
+    ]))).toThrow('项目文件与目录路径冲突')
   })
 
   it('exports static files through the same host CSP policy as runtime', () => {

@@ -1,3 +1,6 @@
+import { readFile } from 'node:fs/promises'
+
+import { strFromU8, unzipSync } from 'fflate'
 import { expect, test, type Page } from '@playwright/test'
 
 const appStorageKey = 'mosaic-model-studio'
@@ -119,6 +122,24 @@ test('static preview uses the built-in demo path without a provider request', as
   await expect(dialog).toBeHidden()
   await expect(opener).toBeFocused()
   expect(providerRequests).toEqual([])
+})
+
+test('static results download a ZIP containing an index.html', async ({ page }) => {
+  await setEnglish(page)
+  await waitForStudio(page)
+
+  const result = page.getByRole('article').filter({ hasText: 'gpt-4o' }).first()
+  await expect(result).toContainText(/Artifact ready|Complete/)
+  const downloadPromise = page.waitForEvent('download')
+  await result.getByRole('button', { name: 'Download static ZIP gpt-4o' }).click()
+  const download = await downloadPromise
+
+  expect(download.suggestedFilename()).toBe('Orbit-launch-page.zip')
+  const downloadPath = await download.path()
+  expect(downloadPath).not.toBeNull()
+  const archive = unzipSync(new Uint8Array(await readFile(downloadPath!)))
+  expect(Object.keys(archive)).toEqual(['Orbit-launch-page/index.html'])
+  expect(strFromU8(archive['Orbit-launch-page/index.html']!)).toContain('orbit/')
 })
 
 test('stopping a mocked provider request preserves a cancelled result', async ({ page }) => {

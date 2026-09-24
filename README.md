@@ -19,7 +19,7 @@ Mosaic 是一个浏览器内的多模型工作台：使用同一段提示词选�
 
 - 添加、编辑和删除 OpenAI、Anthropic、Google Gemini、OpenRouter 及自定义 OpenAI-compatible Provider
 - 从 Provider 获取模型列表，也支持手动输入模型 ID
-- 多选模型并行生成，结果支持排序、状态筛选、预览、重试和完整工程导出
+- 多选模型并行生成，结果支持排序、状态筛选、预览、重试和 ZIP 导出
 - API Key、Provider、模型、提示词和选择状态保存在浏览器 `localStorage`
 - 静态结果使用 DOMPurify、宿主 CSP、`sandbox=""` 和 `no-referrer`
 - 交互工程复用一个 WebContainer，并提供启动阶段、日志、停止和重试
@@ -35,7 +35,7 @@ Mosaic 是一个浏览器内的多模型工作台：使用同一段提示词选�
 - Zustand、React Hook Form、Zod、TanStack Query
 - i18next / react-i18next
 - OpenAI、Anthropic、Google GenAI SDK（按 Provider 动态加载）
-- DOMPurify、WebContainer
+- DOMPurify、WebContainer、fflate（ZIP 导出）
 - Vitest、Playwright
 
 ### 本地开发
@@ -88,6 +88,18 @@ VITE_WEBCONTAINER_API_KEY=
 | Anthropic | `https://api.anthropic.com` | `https://api.anthropic.com` |
 | Google Gemini | `https://generativelanguage.googleapis.com` | `https://generativelanguage.googleapis.com` |
 | OpenAI-compatible | `https://openrouter.ai/api/v1` | `https://openrouter.ai` |
+
+### 导出项目
+
+- 静态页面会导出为 ZIP；解压后双击其中的 `index.html` 即可在浏览器中打开。
+- Vite 交互工程会导出为完整源码 ZIP；解压后安装依赖并启动：
+
+  ```bash
+  npm ci
+  npm run dev
+  ```
+
+- ZIP 不包含 `node_modules` 或宿主本地配置，也不会主动打包 Provider/API Key 配置。生成代码应先审查，再在本地运行。
 
 ### 取消、重试和历史
 
@@ -182,7 +194,7 @@ Mosaic is a browser-based multi-model workspace. It sends one prompt to several 
 
 - Add, edit, and remove OpenAI, Anthropic, Google Gemini, OpenRouter, and custom OpenAI-compatible providers
 - Discover models through provider APIs or enter model IDs manually
-- Run several models in parallel, then sort, filter, preview, retry, and export results
+- Run several models in parallel, then sort, filter, preview, retry, and export results as ZIP archives
 - Persist provider settings, API keys, prompts, model selection, and run history in browser `localStorage`
 - Isolate static output with DOMPurify, a host CSP, `sandbox=""`, and `no-referrer`
 - Reuse one WebContainer with staged status, logs, stop, and retry controls
@@ -198,7 +210,7 @@ Mosaic is a browser-based multi-model workspace. It sends one prompt to several 
 - Zustand, React Hook Form, Zod, TanStack Query
 - i18next / react-i18next
 - OpenAI, Anthropic, and Google GenAI SDKs loaded per provider
-- DOMPurify and WebContainer
+- DOMPurify, WebContainer, and fflate for ZIP export
 - Vitest and Playwright
 
 ### Local development
@@ -258,6 +270,18 @@ Every `VITE_` variable is exposed to the client. Use only a restricted WebContai
 - Stop aborts unfinished requests, marks them as cancelled, and prevents late responses from overwriting results.
 - Retry uses the prompt and Demo mode saved with that result.
 - Recent runs are stored in a versioned, bounded local history that can restore inputs or be cleared.
+
+### Exporting projects
+
+- Static pages are exported as ZIP archives. After extraction, double-click `index.html` to open the page in a browser.
+- Vite projects are exported as complete source ZIP archives. Extract the archive, install dependencies, and start the project:
+
+  ```bash
+  npm ci
+  npm run dev
+  ```
+
+- ZIP files do not contain `node_modules` or host-local configuration, and do not intentionally bundle provider/API-key settings. Review generated code before running it locally.
 
 ### Browser and security requirements
 
