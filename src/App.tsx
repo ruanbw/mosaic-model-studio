@@ -55,6 +55,7 @@ function App() {
   const { providers, selectedModelKeys, prompt, demoMode, activeView, results, isRunning, setPrompt, setActiveView, toggleModel, clearModelSelection, addProvider, updateProvider, removeProvider, setDemoMode, setRunning, replaceResults, upsertResult, removeResult, clearResults, clearConfiguration, restoreDefaults } = useAppStore()
   const [providerDialogOpen, setProviderDialogOpen] = useState(false)
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
+  const providerDialogReturnFocusRef = useRef<HTMLElement | null>(null)
   const [previewResult, setPreviewResult] = useState<GenerationResult | null>(null)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -109,17 +110,22 @@ function App() {
     }
   }, [cancelActiveGeneration])
   useEffect(() => { if (!demoMode || initialDemoSeeded.current || results.length > 0 || modelOptions.length === 0) return; initialDemoSeeded.current = true; replaceResults(createInitialDemoResults(selectedModels.length > 0 ? selectedModels : modelOptions)) }, [demoMode, modelOptions, replaceResults, results.length, selectedModels])
+  const captureProviderDialogOpener = useCallback(() => {
+    const activeElement = document.activeElement
+    providerDialogReturnFocusRef.current = activeElement instanceof HTMLElement && activeElement !== document.body ? activeElement : null
+  }, [])
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'k') return
       if (event.defaultPrevented || isEditableTarget(event.target) || document.querySelector('[role="dialog"]')) return
       event.preventDefault()
+      captureProviderDialogOpener()
       setEditingProvider(null)
       setProviderDialogOpen(true)
     }
     window.addEventListener('keydown', handleShortcut)
     return () => window.removeEventListener('keydown', handleShortcut)
-  }, [])
+  }, [captureProviderDialogOpener])
 
   const generationMutation = useMutation<GenerationResult[], Error, GenerationPayload>({
     mutationFn: async ({ models, providers: generationProviders, prompt: currentPrompt, demoMode: useDemo, signal, token, runId, results }) => {
@@ -263,8 +269,8 @@ function App() {
     if (!model) { toast.error(t('models.removed')); return }
     if (startGeneration([model], result.inputPrompt ?? prompt, result.inputDemoMode ?? demoMode, true)) handleRemoveResult(result.id)
   }
-  const openAddProvider = () => { setEditingProvider(null); setProviderDialogOpen(true); setMobileSidebarOpen(false) }
-  const openEditProvider = (provider: Provider) => { setEditingProvider(provider); setProviderDialogOpen(true) }
+  const openAddProvider = () => { captureProviderDialogOpener(); setEditingProvider(null); setProviderDialogOpen(true); setMobileSidebarOpen(false) }
+  const openEditProvider = (provider: Provider) => { captureProviderDialogOpener(); setEditingProvider(provider); setProviderDialogOpen(true) }
   const handleSaveProvider = (draft: ProviderDraft, providerId?: string) => { const normalized: ProviderDraft = { ...draft, baseUrl: draft.baseUrl.trim(), models: parseModelIds(draft.models).join('\n') }; if (providerId) updateProvider(providerId, { name: normalized.name.trim(), kind: normalized.kind, apiKey: normalized.apiKey.trim(), baseUrl: normalized.baseUrl || undefined, models: parseModelIds(normalized.models) }); else addProvider(normalized) }
   const handleDeleteProvider = (provider: Provider) => { if (!window.confirm(t('providers.deleteConfirm', { name: provider.name }))) return; removeProvider(provider.id); if (editingProvider?.id === provider.id) setProviderDialogOpen(false); toast.success(t('providers.deleted')) }
   const handleRestore = () => { if (!window.confirm(t('settings.restoreConfirm'))) return; cancelActiveGeneration(false); stopActiveProject(); restoreDefaults(); clearResults(); setPreviewResult(null); toast.success(t('settings.restored')) }
@@ -284,7 +290,7 @@ function App() {
       {activeView === 'providers' && <ProvidersView providers={providers} onAdd={openAddProvider} onEdit={openEditProvider} onDelete={handleDeleteProvider} />}
       {activeView === 'settings' && <SettingsView providers={providers} promptLength={prompt.length} selectedCount={selectedModels.length} onRestore={handleRestore} onClear={handleClear} />}
     </main>
-    <ProviderDialog open={providerDialogOpen} onOpenChange={setProviderDialogOpen} provider={editingProvider} onSave={handleSaveProvider} onDelete={handleDeleteProvider} /><PreviewDialog result={previewResult} open={Boolean(previewResult)} onOpenChange={(open) => { if (!open) setPreviewResult(null) }} />
+    <ProviderDialog open={providerDialogOpen} onOpenChange={setProviderDialogOpen} provider={editingProvider} onSave={handleSaveProvider} onDelete={handleDeleteProvider} returnFocusRef={providerDialogReturnFocusRef} /><PreviewDialog result={previewResult} open={Boolean(previewResult)} onOpenChange={(open) => { if (!open) setPreviewResult(null) }} />
   </div>
 }
 
