@@ -84,6 +84,12 @@ export const useAppStore = create<AppState>()(
           providers: state.providers.map((provider) =>
             provider.id === providerId ? { ...provider, ...updates } : provider,
           ),
+          selectedModelKeys: updates.models
+            ? state.selectedModelKeys.filter((key) => {
+                if (!key.startsWith(`${providerId}::`)) return true
+                return updates.models?.includes(key.slice(providerId.length + 2)) ?? true
+              })
+            : state.selectedModelKeys,
         })),
       removeProvider: (providerId) =>
         set((state) => ({
