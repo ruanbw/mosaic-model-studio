@@ -15,14 +15,7 @@ export const providerDraftSchema = z.object({
         /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(value),
       '出于安全考虑，仅允许 HTTPS 或本机 HTTP 地址',
     ),
-  models: z
-    .string()
-    .trim()
-    .min(1, '至少添加一个模型')
-    .refine(
-      (value) => value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean).length > 0,
-      '至少添加一个模型',
-    ),
+  models: z.string().trim().max(20_000, '模型列表过长'),
 })
 
 export type ProviderFormValues = z.infer<typeof providerDraftSchema>
