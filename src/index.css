@@ -1,9 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme inline {
-  --font-sans: 'Space Grotesk', 'Avenir Next', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: 'DM Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
   --color-surface-soft: var(--surface-soft);
@@ -24,14 +23,16 @@
   --color-text-secondary: var(--text-secondary);
   --color-text-muted: var(--text-muted);
   --color-text-faint: var(--text-faint);
+  --color-text-disabled: var(--text-disabled);
   --color-text-on-accent: var(--text-on-accent);
   --color-control: var(--control-bg);
   --color-control-bg: var(--control-bg);
   --color-control-hover: var(--control-bg-hover);
   --color-control-border: var(--control-border);
   --color-control-text: var(--control-text);
-  --color-focus: var(--focus);
-  --color-focus-ring: var(--focus);
+  --color-control-disabled: var(--control-disabled);
+  --color-focus: var(--focus-ring);
+  --color-focus-ring: var(--focus-ring);
 }
 
 :root {
@@ -56,7 +57,9 @@
   --control-border: #3a424c;
   --control-text: #f0f1ed;
   --control-disabled: #737c82;
-  --focus: #a4efc7;
+  --focus-ring: #a4efc7;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
   --accent-mint: #a4efc7;
   --violet: #c6b4ff;
   --orange: #f3b58b;
@@ -92,7 +95,7 @@
   --control-border: #87998d;
   --control-text: #18211c;
   --control-disabled: #7a857e;
-  --focus: #147a4c;
+  --focus-ring: #147a4c;
   --accent-mint: #147a4c;
   --violet: #725ac4;
   --orange: #b86e3b;
@@ -113,15 +116,30 @@
   ::selection { background: color-mix(in srgb, var(--accent-mint) 28%, transparent); color: var(--text-primary); }
 
   :where(a, button, input, textarea, select, summary, [contenteditable='true'], [tabindex]):focus-visible {
-    outline: 2px solid var(--focus) !important;
-    outline-offset: 2px !important;
+    outline: var(--focus-ring-width) solid var(--focus-ring) !important;
+    outline-offset: var(--focus-ring-offset) !important;
   }
 }
 
+/* Radix switches stay visually compact on touch devices; their hit area grows without resizing the track. */
+button[role='switch'] {
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
 @media (pointer: coarse), (any-pointer: coarse) {
-  :where(button, [role='button'], a[href], input, select, textarea) {
+  :where(button, [role='button'], a[href], input, select, textarea):not([role='switch']) {
     min-block-size: var(--touch-target-size);
     min-inline-size: var(--touch-target-size);
+  }
+
+  button[role='switch']::after {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    inline-size: var(--touch-target-size);
+    block-size: var(--touch-target-size);
+    transform: translate(-50%, -50%);
   }
 }
 
