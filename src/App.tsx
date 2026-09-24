@@ -6,7 +6,9 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useShallow } from 'zustand/react/shallow'
 import { generateWithProvider, providerErrorMessage } from './api'
+import { ComparisonToolbar, type ResultFilter, type ResultSort } from './components/ComparisonToolbar'
 import { EmptyResults } from './components/EmptyResults'
+import { HistoryPanel, RUN_HISTORY_STORAGE_KEY } from './components/HistoryPanel'
 import { ModelPicker } from './components/ModelPicker'
 import { PreviewDialog } from './components/PreviewDialog'
 import { PromptComposer } from './components/PromptComposer'
@@ -18,6 +20,7 @@ import { Sidebar } from './components/Sidebar'
 import { ThemePicker } from './components/ThemePicker'
 import { LanguagePicker } from './components/LanguagePicker'
 import { createDemoResult, createInitialDemoResults } from './demo'
+import { addRunHistoryEntry, deserializeRunHistory, serializeRunHistory, type RunHistoryEntry } from './project/history'
 import { useAppStore } from './store'
 import type { AppView, GenerationResult, ModelOption, Provider, ProviderDraft } from './types'
 import { webContainerManager } from './webcontainer'
@@ -51,6 +54,21 @@ const isEditableTarget = (target: EventTarget | null) => {
   return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
 }
 
+const appendRunHistory = (variables: GenerationPayload, results: GenerationResult[] | undefined) => {
+  if (!results?.some((result) => result.status === 'success')) return
+  const existing = deserializeRunHistory(window.localStorage.getItem(RUN_HISTORY_STORAGE_KEY))
+  const successful = results.filter((result) => result.status === 'success')
+  const next = addRunHistoryEntry(existing, {
+    id: variables.runId,
+    prompt: variables.prompt,
+    demoMode: variables.demoMode,
+    models: variables.models.map((model) => model.model),
+    resultSummary: `${successful.length}/${results.length} ${successful.map((result) => result.model).join(', ')}`,
+  })
+  window.localStorage.setItem(RUN_HISTORY_STORAGE_KEY, serializeRunHistory(next))
+  window.dispatchEvent(new Event('mosaic-history-changed'))
+}
+
 interface StudioPromptProps {
   selectedCount: number
   isRunning: boolean
@@ -76,13 +94,31 @@ interface StudioResultsProps {
   onExpand: (result: GenerationResult) => void
   onRemove: (resultId: string) => void
   onRetry: (result: GenerationResult) => void
+  onRestoreHistory: (entry: RunHistoryEntry) => void
 }
 
-const StudioResults = memo(function StudioResults({ modelOptions, isRunning, onLoadDemo, onSelectModels, onExpand, onRemove, onRetry }: StudioResultsProps) {
+const StudioResults = memo(function StudioResults({ modelOptions, isRunning, onLoadDemo, onSelectModels, onExpand, onRemove, onRetry, onRestoreHistory }: StudioResultsProps) {
   const { t } = useTranslation()
   const results = useAppStore((state) => state.results)
   const demoMode = useAppStore((state) => state.demoMode)
-  return <section className="mt-14" aria-labelledby="results-heading"><div className="mb-4 flex items-center justify-between gap-5 max-[580px]:flex-col max-[580px]:items-start"><div><div className="flex items-center gap-2"><h2 id="results-heading" className="m-0 text-[19px] font-medium tracking-[-0.03em]">{t('results.title')}</h2><span className="min-w-[21px] rounded-md bg-mint/10 px-1.5 py-1 text-center font-mono text-[10px] text-mint">{results.length}</span></div><p className="mt-1.5 mb-0 text-[11px] text-[#6d757c]">{demoMode ? t('results.demo') : t('results.sandbox')}</p></div><div className="flex w-full items-center justify-between gap-4 max-[580px]:w-full"><span className="flex items-center gap-1.5 font-mono text-[9px] text-[#697179]"><Activity size={14} />{t('results.grid')}</span>{results.length > 0 && <button className="inline-flex items-center gap-1.5 py-0.5 text-[10px] text-[#8c9499] transition-colors hover:text-ink" type="button" onClick={onLoadDemo} disabled={isRunning}><Sparkles size={14} />{t('results.reload')}</button>}</div></div>{results.length === 0 ? <EmptyResults onLoadDemo={onLoadDemo} onSelectModels={onSelectModels} hasModels={modelOptions.length > 0} /> : <div className="grid grid-cols-2 gap-[15px] max-[821px]:grid-cols-1">{results.map((result) => <ResultCard key={result.id} result={result} busy={isRunning} onExpand={onExpand} onRemove={onRemove} onRetry={onRetry} />)}</div>}</section>
+  const [sort, setSort] = useState<ResultSort>('default')
+  const [filter, setFilter] = useState<ResultFilter>('all')
+  const visibleResults = useMemo(() => {
+    const filtered = results.filter((result) => filter === 'all' || result.status === filter)
+    if (sort === 'default') return filtered
+    return [...filtered].sort((left, right) => {
+      if (sort === 'newest') return right.createdAt - left.createdAt
+      if (sort === 'oldest') return left.createdAt - right.createdAt
+      if (sort === 'fastest') return (left.elapsedMs ?? Number.MAX_SAFE_INTEGER) - (right.elapsedMs ?? Number.MAX_SAFE_INTEGER)
+      const rank: Record<GenerationResult['status'], number> = { success: 0, error: 1, cancelled: 2, running: 3, queued: 4 }
+      return rank[left.status] - rank[right.status]
+    })
+  }, [filter, results, sort])
+
+  return <>
+    <section className="mt-14" aria-labelledby="results-heading"><div className="mb-4 flex items-center justify-between gap-5 max-[580px]:flex-col max-[580px]:items-start"><div><div className="flex items-center gap-2"><h2 id="results-heading" className="m-0 text-[19px] font-medium tracking-[-0.03em]">{t('results.title')}</h2><span className="min-w-[21px] rounded-md bg-mint/10 px-1.5 py-1 text-center font-mono text-[10px] text-mint">{results.length}</span></div><p className="mt-1.5 mb-0 text-[11px] text-muted">{demoMode ? t('results.demo') : t('results.sandbox')}</p></div><div className="flex w-full items-center justify-between gap-4 max-[580px]:w-full"><span className="flex items-center gap-1.5 font-mono text-[9px] text-faint"><Activity size={14} />{t('results.grid')}</span>{results.length > 0 && <button className="inline-flex items-center gap-1.5 py-0.5 text-[10px] text-muted transition-colors hover:text-ink" type="button" onClick={onLoadDemo} disabled={isRunning}><Sparkles size={14} />{t('results.reload')}</button>}</div></div>{results.length === 0 ? <EmptyResults onLoadDemo={onLoadDemo} onSelectModels={onSelectModels} hasModels={modelOptions.length > 0} /> : <><ComparisonToolbar sort={sort} filter={filter} count={visibleResults.length} onSortChange={setSort} onFilterChange={setFilter} onClear={() => { setSort('default'); setFilter('all') }} />{visibleResults.length === 0 ? <p className="rounded-md border border-dashed border-line p-6 text-center text-xs text-faint">{t('comparison.empty')}</p> : <div className="grid grid-cols-2 gap-[15px] max-[821px]:grid-cols-1">{visibleResults.map((result) => <ResultCard key={result.id} result={result} busy={isRunning} onExpand={onExpand} onRemove={onRemove} onRetry={onRetry} />)}</div>}</>}</section>
+    <HistoryPanel onRestore={onRestoreHistory} />
+  </>
 })
 
 interface AppSettingsProps {
@@ -99,7 +135,7 @@ const AppSettings = memo(function AppSettings({ providers, selectedCount, onRest
 
 function App() {
   const { t } = useTranslation()
-  const { providers, selectedModelKeys, demoMode, activeView, isRunning, setActiveView, toggleModel, clearModelSelection, addProvider, updateProvider, removeProvider, setRunning, replaceResults, upsertResult, removeResult, clearResults, clearConfiguration, restoreDefaults } = useAppStore(useShallow((state) => ({ providers: state.providers, selectedModelKeys: state.selectedModelKeys, demoMode: state.demoMode, activeView: state.activeView, isRunning: state.isRunning, setActiveView: state.setActiveView, toggleModel: state.toggleModel, clearModelSelection: state.clearModelSelection, addProvider: state.addProvider, updateProvider: state.updateProvider, removeProvider: state.removeProvider, setRunning: state.setRunning, replaceResults: state.replaceResults, upsertResult: state.upsertResult, removeResult: state.removeResult, clearResults: state.clearResults, clearConfiguration: state.clearConfiguration, restoreDefaults: state.restoreDefaults })))
+  const { providers, selectedModelKeys, demoMode, activeView, isRunning, setPrompt, setDemoMode, setActiveView, toggleModel, clearModelSelection, addProvider, updateProvider, removeProvider, setRunning, replaceResults, upsertResult, removeResult, clearResults, clearConfiguration, restoreDefaults } = useAppStore(useShallow((state) => ({ providers: state.providers, selectedModelKeys: state.selectedModelKeys, demoMode: state.demoMode, activeView: state.activeView, isRunning: state.isRunning, setPrompt: state.setPrompt, setDemoMode: state.setDemoMode, setActiveView: state.setActiveView, toggleModel: state.toggleModel, clearModelSelection: state.clearModelSelection, addProvider: state.addProvider, updateProvider: state.updateProvider, removeProvider: state.removeProvider, setRunning: state.setRunning, replaceResults: state.replaceResults, upsertResult: state.upsertResult, removeResult: state.removeResult, clearResults: state.clearResults, clearConfiguration: state.clearConfiguration, restoreDefaults: state.restoreDefaults })))
   const [providerDialogOpen, setProviderDialogOpen] = useState(false)
   const [modelPickerOpen, setModelPickerOpen] = useState(false)
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
@@ -272,8 +308,9 @@ function App() {
     onError: (error, variables) => {
       if (ownsActiveGeneration(variables.token, variables.runId)) toast.error(providerErrorMessage(error))
     },
-    onSettled: (_data, _error, variables) => {
+    onSettled: (data, _error, variables) => {
       if (!ownsActiveGeneration(variables.token, variables.runId)) return
+      appendRunHistory(variables, data)
       activeGenerationRef.current = null
       abortControllerRef.current = null
       setRunning(false)
@@ -359,6 +396,7 @@ function App() {
   const handleViewChange = (view: AppView) => { setActiveView(view); setMobileSidebarOpen(false); setModelPickerOpen(false) }
   const openModelPicker = () => setModelPickerOpen(true)
   const loadDemo = () => { const demoModels = selectedModels.length > 0 ? selectedModels : modelOptions; if (demoModels.length === 0) { toast.error(t('models.none')); return }; cancelActiveGeneration(false); stopActiveProject(); replaceResults(createInitialDemoResults(demoModels)); setPreviewResult(null); toast.success(t('results.demoLoaded')) }
+  const restoreHistory = (entry: RunHistoryEntry) => { cancelActiveGeneration(false); setPrompt(entry.prompt); setDemoMode(entry.demoMode); handleViewChange('studio'); toast.success(t('history.restore')) }
   const viewTitle: Record<AppView, string> = { studio: t('nav.studio'), providers: t('nav.providers'), settings: t('nav.settings') }
 
   return <div className="flex min-h-screen bg-canvas">
@@ -367,7 +405,7 @@ function App() {
       {activeView === 'studio' && <div className="mx-auto w-full max-w-[1320px] px-11 pb-20 pt-[52px] max-[1080px]:px-[30px] max-[580px]:px-[15px] max-[580px]:pt-8"><div className="mb-[43px] flex items-end justify-between gap-7 max-[821px]:flex-col max-[821px]:items-start"><div><div className="flex items-center gap-2 font-mono text-[10px] tracking-[0.13em] text-mint"><span className="h-px w-6 bg-mint" />{t('studio.kicker')}</div><h1 className="my-4 max-w-[700px] text-[clamp(34px,4.2vw,56px)] font-medium leading-[1.05] tracking-[-0.065em]">{t('studio.title')}<em className="not-italic text-mint">{t('studio.titleAccent')}</em></h1><p className="m-0 text-sm text-muted">{t('studio.subtitle')}</p></div><button className="flex min-w-[220px] items-center gap-2.5 rounded-[9px] border border-line bg-surface-soft p-3 text-left text-muted transition-colors hover:border-mint/30 hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint/70 max-[821px]:w-full max-[821px]:max-w-[300px]" type="button" onClick={() => promptInputRef.current?.focus()}><div className="grid size-8 place-items-center rounded-lg bg-mint/10 text-mint"><Sparkles aria-hidden="true" size={18} /></div><div className="flex flex-1 flex-col gap-0.5"><strong className="text-[11px] font-semibold text-ink">{t('studio.canvas')}</strong><span className="font-mono text-[10px] text-faint">{t('studio.start')}</span></div><ArrowUpRight aria-hidden="true" className="text-[#606870]" size={16} /></button></div>
         <StudioPrompt selectedCount={selectedModels.length} isRunning={isRunning} onGenerate={handleGenerate} onStop={stopGeneration} onManageModels={openModelPicker} inputRef={promptInputRef} />
         <div className="mt-8 flex flex-wrap items-center gap-4 rounded-[9px] border border-line-soft bg-surface-soft p-3.5 max-[580px]:flex-col max-[580px]:items-stretch"><div className="flex min-w-[145px] flex-col gap-0.5 max-[580px]:w-full max-[580px]:flex-row max-[580px]:items-center max-[580px]:justify-between"><div><span className="eyebrow mb-0.5 block font-mono text-[9px] uppercase tracking-[0.12em] text-faint">MODEL SET</span><strong className="text-xs font-medium">{selectedModels.length > 0 ? t('models.target') : t('models.none')}</strong></div><span className="font-mono text-[9px] text-faint">{selectedModels.length > 0 ? t('models.parallel', { count: selectedModels.length }) : t('models.multi')}</span></div><div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 max-[580px]:order-3 max-[580px]:w-full max-[580px]:flex-basis-full">{selectedModels.length > 0 ? selectedModels.map((model) => <button className="flex max-w-[220px] items-center gap-1.5 rounded-md border border-[#30363e] bg-[#20242a] px-2 py-1.5 font-mono text-[10px] text-[#aeb5b6] transition-colors hover:border-red/35 hover:text-red" type="button" key={model.key} onClick={() => toggleModel(model.key)} title={t('results.remove')}><span className="size-[7px] shrink-0 rounded-full" style={{ background: model.accent }} /><span className="truncate">{model.model}</span><X className="text-[#737b82]" size={13} /></button>) : <span className="text-[11px] text-faint">{t('models.start')}</span>}</div><div className="ml-auto max-[580px]:ml-0 max-[580px]:w-full"><ModelPicker models={modelOptions} selectedKeys={selectedModels.map((model) => model.key)} onToggle={toggleModel} onClear={clearModelSelection} onManage={() => handleViewChange('providers')} open={modelPickerOpen} onOpenChange={setModelPickerOpen} /></div></div>
-        <StudioResults modelOptions={modelOptions} isRunning={isRunning} onLoadDemo={loadDemo} onSelectModels={openModelPicker} onExpand={openPreview} onRemove={handleRemoveResult} onRetry={handleRetry} />
+        <StudioResults modelOptions={modelOptions} isRunning={isRunning} onLoadDemo={loadDemo} onSelectModels={openModelPicker} onExpand={openPreview} onRemove={handleRemoveResult} onRetry={handleRetry} onRestoreHistory={restoreHistory} />
       </div>}
       {activeView === 'providers' && <ProvidersView providers={providers} onAdd={openAddProvider} onEdit={openEditProvider} onDelete={handleDeleteProvider} />}
       {activeView === 'settings' && <AppSettings providers={providers} selectedCount={selectedModels.length} onRestore={handleRestore} onClear={handleClear} />}
