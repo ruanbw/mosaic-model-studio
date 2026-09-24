@@ -1,6 +1,6 @@
 import * as Switch from '@radix-ui/react-switch'
 import { ArrowUpRight, CircleStop, Command, WandSparkles } from 'lucide-react'
-import { useRef } from 'react'
+import { useRef, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PROMPT_TEMPLATES } from '../prompts'
 
@@ -14,6 +14,7 @@ interface PromptComposerProps {
   onGenerate: () => void
   onStop?: () => void
   onManageModels: () => void
+  inputRef?: RefObject<HTMLTextAreaElement | null>
 }
 
 export function PromptComposer({
@@ -26,9 +27,10 @@ export function PromptComposer({
   onGenerate,
   onStop,
   onManageModels,
+  inputRef,
 }: PromptComposerProps) {
   const { t } = useTranslation()
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fallbackInputRef = useRef<HTMLTextAreaElement>(null)
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && !isRunning) {
@@ -56,7 +58,7 @@ export function PromptComposer({
 
       <div className="overflow-hidden rounded-[11px] border border-[#343a43] bg-surface shadow-[0_10px_35px_color-mix(in_srgb,#000_12%,transparent)] transition-[border-color,box-shadow] focus-within:border-mint/50 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--mint)_6%,transparent)]">
         <textarea
-          ref={textareaRef}
+          ref={inputRef ?? fallbackInputRef}
           value={prompt}
           onChange={(event) => onPromptChange(event.target.value)}
           onKeyDown={handleKeyDown}
