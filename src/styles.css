@@ -35,7 +35,7 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .app-shell { min-height: 100vh; display: flex; background: var(--bg); }
 .sidebar-shell { width: 252px; flex: 0 0 252px; }
 .sidebar { width: 252px; min-height: 100vh; position: fixed; inset: 0 auto 0 0; z-index: 20; display: flex; flex-direction: column; padding: 24px 14px 16px; background: #111318; border-right: 1px solid var(--line-soft); }
-.main-shell { min-width: 0; flex: 1; margin-left: 252px; }
+.main-shell { min-width: 0; flex: 1; margin-left: 0; }
 
 .brand-lockup { display: flex; align-items: center; gap: 10px; padding: 0 10px 25px; }
 .brand-lockup > div:last-child { display: flex; flex-direction: column; gap: 2px; }
