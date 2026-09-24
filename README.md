@@ -81,7 +81,7 @@ Cross-Origin-Opener-Policy: same-origin
 Cross-Origin-Embedder-Policy: credentialless
 ```
 
-自建部署也必须在应用响应上保留等价响应头。若浏览器、扩展、反向代理、跨域资源或内容安全策略阻止 WebContainer 启动，静态沙箱仍可工作，但交互工程无法运行。排查步骤见 [`docs/webcontainer.md`](docs/webcontainer.md)。
+自建部署也必须在**最终公开 HTML 响应**上保留等价响应头；只配置 Vite 开发服务器、只检查重定向前的响应，或让 CDN 覆盖/删除响应头都不够。生产使用 HTTPS，并在修改代理后清理 CDN 缓存。若浏览器、扩展、反向代理、跨域资源或内容安全策略阻止 WebContainer 启动，静态沙箱仍可工作，但交互工程无法运行。部署头、最终 URL 检查和故障排查见 [`docs/webcontainer.md`](docs/webcontainer.md)。
 
 ## 配置模型提供商
 
@@ -93,6 +93,19 @@ Cross-Origin-Embedder-Policy: credentialless
 4. 点击「获取模型」通过官方 SDK 读取模型列表；如果服务不支持模型列表接口，再手动填写模型 ID（每行一个）
 
 保存后，回到 Studio 的「对比模型」选择器中勾选一个或多个模型。
+
+Provider 的默认地址如下；origin 不包含路径中的 `/v1` 或 `/v1beta`。自定义 Base URL 会替换默认地址，浏览器仍从最终应用 origin 直连 Provider，因此必须验证目标服务的 CORS 策略：
+
+| 协议 | 默认 Base URL | 默认 origin |
+| --- | --- | --- |
+| OpenAI | `https://api.openai.com/v1` | `https://api.openai.com` |
+| Anthropic | `https://api.anthropic.com/v1` | `https://api.anthropic.com` |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta` | `https://generativelanguage.googleapis.com` |
+| OpenAI-compatible（默认 OpenRouter） | `https://openrouter.ai/api/v1` | `https://openrouter.ai` |
+
+### 取消与重试
+
+生成期间当前界面没有手动取消模型请求的按钮；关闭或停止 WebContainer 只停止工程运行时，不会撤销已经发出的模型请求。失败结果卡上的“重试”会针对同一个 provider/model 发起全新请求，保留其他结果，不续传部分输出，也不会自动重试其他模型。WebContainer 的停止、替换和重新打开按单实例状态机串行清理，详见 [`docs/webcontainer.md`](docs/webcontainer.md)。
 
 ## 安全与生产边界
 
@@ -106,7 +119,7 @@ Cross-Origin-Embedder-Policy: credentialless
 - 生产部署前增加自己的后端代理、认证、限流、额度控制和服务端密钥管理
 - 供应商是否允许浏览器直连取决于其 CORS 策略；如果遇到跨域错误，应使用后端代理，而不是把密钥写进前端代码
 
-模型输出会被视为不可信内容。静态结果虽然经过 DOMPurify 和 sandbox iframe 隔离，仍不要把它当作可信代码直接部署。WebContainer 提供浏览器内的 Node.js 兼容运行环境，不代表代码通过了生产安全审计；生成的工程仍可能消耗配额、访问网络或包含有漏洞的依赖。WebContainer 不是生产后端，不要用它承载生产 API、持久数据或保密服务。
+模型输出会被视为不可信内容。静态结果虽然经过 DOMPurify 和 `sandbox=""` iframe（并设置 `referrerPolicy="no-referrer"`）隔离，仍不要把它当作可信代码直接部署。当前仓库没有为每个 `srcDoc` 静态预览单独注入 CSP；生产若统一设置 CSP，必须分别验证静态预览和 WebContainer 预览，不能用移除 sandbox 的方式排错。WebContainer 提供浏览器内的 Node.js 兼容运行环境，不代表代码通过了生产安全审计；生成的工程仍可能消耗配额、访问网络或包含有漏洞的依赖。WebContainer 不是生产后端，不要用它承载生产 API、持久数据或保密服务。
 
 ## POC 与商业生产许可
 

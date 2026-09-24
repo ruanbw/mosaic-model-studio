@@ -36,6 +36,21 @@ Prompt + selected providers
 - `@webcontainer/api` 在生产构建中归入 `webcontainer-vendor` 分包，避免 WebContainer SDK 与普通应用界面共同更新。
 - WebContainer 的可选 key 与模型 provider key 是两类不同凭据，不能互相替代。
 
+## Provider 默认 origin 与浏览器直连
+
+这里的 **origin** 是 URL 的 scheme、host 和 port，不包含 `/v1` 等路径。表单切换协议时使用以下内置默认值；自定义 Base URL 会替换对应地址：
+
+| Provider 协议 | 默认 Base URL | 默认 origin |
+| --- | --- | --- |
+| OpenAI | `https://api.openai.com/v1` | `https://api.openai.com` |
+| Anthropic | `https://api.anthropic.com/v1` | `https://api.anthropic.com` |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta` | `https://generativelanguage.googleapis.com` |
+| OpenAI-compatible（默认 OpenRouter） | `https://openrouter.ai/api/v1` | `https://openrouter.ai` |
+
+Provider 的默认 origin 是请求目的地的 origin，不是应用 origin，也不是供应商的 CORS 白名单。浏览器会从当前页面的 origin（例如 `https://studio.example.com`）直接发起 SDK 请求；该页面 origin 必须被相应服务或自建网关的 CORS 策略允许。OpenRouter 请求还会携带当前页面的 `HTTP-Referer`，但这不替代 CORS 配置。遇到跨域失败时，应改用受控的后端代理，不要把 key 写进代理响应或前端配置。
+
+如果把 Base URL 留空，SDK 可能使用其自身版本对应的默认地址；不要把“留空”和上表的内置默认地址混为一谈。生产验收应记录实际使用的 Base URL、origin 和 CORS 结果，尤其是自定义 OpenAI-compatible 网关。
+
 ## 生命周期状态机
 
 交互预览应串行驱动以下状态；同一时刻最多一个状态执行有副作用的操作：
@@ -75,6 +90,36 @@ stopping ──cleanup──► idle
 
 > 状态名描述架构契约；UI 可以合并展示阶段，但不得跳过实例互斥和服务清理。
 
+## 取消、停止与重试语义
+
+模型生成和 WebContainer 预览是两条独立生命周期，不能用一个“取消”按钮的语义混淆两者。
+
+### 模型生成
+
+- 当前 Studio 在生成期间显示运行状态，但没有手动取消模型请求的 UI。SDK 调用已经接收 `AbortSignal`；若调用层或浏览器中止请求，结果会按失败处理并显示“请求已取消”。
+- 关闭预览、移除结果或停止 WebContainer **不会**取消已经发出的模型请求。模型请求完成后仍可能更新对应的结果卡。
+- 结果卡上的“重试”只针对失败的那一个 provider/model，启动一次全新的请求；它不会续传部分输出，也不会自动重试其他模型。重试使用编辑器当前的 prompt 和演示模式设置，并保留其他结果卡；生成进行中时重试按钮不可用。
+
+### WebContainer
+
+- 预览中的“停止”、关闭预览、移除活动结果或启动一批新的生成结果，都会使当前激活失效，终止 npm 进程并清理工程目录，然后回到 `stopping` → `idle`。这是停止运行时，不是撤销已经完成的模型生成。
+- 停止或替换工程后，迟到的安装完成、server-ready 或错误回调不得重新发布旧工程的 URL。重新打开同一工程会发起一次新的激活；当前界面没有单独的“运行时重试”按钮。
+- 同一个 WebContainer 可以被后续工程复用，但同一时刻只允许一个工程、一个依赖安装和一个 Vite server。快速重复打开、停止和重试必须按上述状态机串行验证。
+
+## 静态 HTML 与 CSP
+
+静态结果和交互工程使用不同的安全边界。静态结果先经过 DOMPurify，再放入 `sandbox=""` iframe，并设置 `referrerPolicy="no-referrer"`；空的 sandbox 不授予脚本、同源访问、表单、弹窗或顶层导航权限。这些措施是当前代码提供的隔离，不应被描述成完整的浏览器安全审计。
+
+当前仓库没有为每个 `srcDoc` 静态预览单独注入 CSP `meta` 或响应头。若部署平台统一设置 CSP，必须在最终 URL 同时验证静态预览和 WebContainer 预览；不要为了修复静态页面而移除 sandbox，也不要把只适用于静态产物的策略未经测试地复制到主应用。
+
+如果将静态 HTML 独立部署而不是通过当前的 `srcDoc` 预览，可以把下面的策略作为收紧资源访问的起点，再按实际图片、字体和样式来源调整：
+
+```http
+Content-Security-Policy: default-src 'none'; script-src 'none'; style-src 'unsafe-inline' https:; img-src data: https:; font-src data: https:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'
+```
+
+该示例不是 Mosaic 主应用的完整 CSP：主应用还需要为自身 bundle、Provider API 和 WebContainer 运行时/预览 origin 配置相应的 `script-src`、`connect-src`、`frame-src` 等指令。静态 CSP 只能减少资源滥用，不能保护浏览器中的 provider key。
+
 ## 单实例限制
 
 - 页面只拥有一个活动 WebContainer。所有结果卡如果需要交互预览，必须选择当前工程，而不是同时启动多个容器。
@@ -92,7 +137,13 @@ stopping ──cleanup──► idle
 5. **资源仍是应用责任。** 依赖安装会访问包注册表并消耗网络、配额和运行时资源。生产使用需要滥用防护、依赖治理、审计和撤销流程。
 6. **跨源隔离不是安全认证。** COOP/COEP 启用浏览器能力，不会让生成代码、依赖或客户端 key 变可信。
 
-## 跨源隔离与部署头
+## BYOK 风险与生产替代
+
+Provider API key 会保存在当前浏览器的 `localStorage`，并由浏览器直接发送给 Provider。HTTPS 只能保护传输链路，不能阻止同源脚本、恶意依赖、浏览器扩展或被 XSS 注入的代码读取 key。所有 `VITE_` 变量同样会进入客户端 bundle；`VITE_WEBCONTAINER_API_KEY` 只能是受限的 WebContainer 客户端 key，绝不能放 Provider 的服务端密钥。
+
+静态 sandbox 和 CSP 是纵深防御，不是密钥托管方案。生产环境应使用认证后的后端代理，在服务端保存 Provider key，并实施用户隔离、限流、额度控制、审计、依赖治理和密钥轮换；不要把高价值 BYOK key 作为多租户产品的默认凭据。怀疑 key 泄露时先撤销/轮换，再检查构建产物、CDN 缓存、CI 日志和浏览器 Network 记录。
+
+## 跨源隔离与生产部署
 
 WebContainer 需要应用处于跨源隔离状态。开发服务器和 Vite preview 由 `vite.config.ts` 提供以下头：
 
@@ -101,9 +152,38 @@ Cross-Origin-Opener-Policy: same-origin
 Cross-Origin-Embedder-Policy: credentialless
 ```
 
-生产静态托管必须由 CDN、边缘代理或 Web 服务器在 HTML 及相关应用响应上配置等价响应头，不能只在 Vite 开发服务器上配置。修改代理后应清理 CDN 缓存，并从最终公开 URL 验证响应头。
+生产 CDN、边缘代理或 Web 服务器必须在**最终公开 HTML 响应**上保留等价配置；仅配置 Vite 开发服务器、只检查重定向前的响应，或让 CDN 覆盖/删除响应头都不够。生产使用 HTTPS，并确认代理的每次重定向和错误响应也不会破坏最终文档的隔离状态。不要把策略降级为 `unsafe-none`。
 
 `credentialless` 会影响跨源子资源。应用依赖的外部资源必须能适配该策略；遇到资源被阻止时，先检查浏览器控制台和 Network 面板中的 CORS/CORP 提示，不要通过关闭 COOP/COEP 掩盖问题。若托管平台无法提供等价头，交互预览不可用，但静态 sandbox 路径仍可保留。
+
+### 最终 URL 验证
+
+部署后先清理 CDN/代理缓存，再对用户实际访问的最终 URL（包含最终路径，而不是 `localhost` 或未改动的 Vite 地址）执行检查：
+
+```bash
+PUBLIC_URL='https://app.example.com/'
+curl -sS -L -D - -o /dev/null "${PUBLIC_URL}?deploy=$(date +%s)" \
+  | grep -iE '^(HTTP/|cross-origin-opener-policy:|cross-origin-embedder-policy:)'
+```
+
+检查输出中最后一个响应块，确认最终状态为成功响应，并同时包含：
+
+```text
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: credentialless
+```
+
+再在浏览器打开同一最终 URL，于控制台确认：
+
+```js
+({
+  origin: window.location.origin,
+  crossOriginIsolated: window.crossOriginIsolated,
+  sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined',
+})
+```
+
+`crossOriginIsolated` 应为 `true`，且 `sharedArrayBuffer` 应为 `true`。随后打开一个 WebContainer 工程，确认预览 URL 使用 HTTPS（或本机 loopback HTTP）、不与主应用 origin 相同，并能在最终部署页面中完成依赖安装和交互。若 CDN 返回了旧缓存，重复上述检查而不是只重启本地 preview。
 
 ## `VITE_WEBCONTAINER_API_KEY`
 
@@ -164,6 +244,8 @@ VITE_WEBCONTAINER_API_KEY=
 - [ ] `pnpm build` 通过，并存在 `webcontainer-vendor` 分包。
 - [ ] `pnpm dev` 的 HTML 响应包含 COOP `same-origin` 和 COEP `credentialless`。
 - [ ] `pnpm preview` 的 HTML 响应包含相同两项头。
+- [ ] 生产代理/CDN 的**最终公开 URL**（含重定向后的最终响应）仍返回上述两项头；已清理旧 CDN 缓存。
+- [ ] 在最终 URL 控制台确认 `window.crossOriginIsolated === true` 且 `typeof SharedArrayBuffer !== 'undefined'`。
 - [ ] `.env.local` 未被提交，仓库只保留 `.env.example` 中的空变量。
 
 ### 功能
@@ -172,12 +254,15 @@ VITE_WEBCONTAINER_API_KEY=
 - [ ] Vite 工程完成依赖安装、服务器启动和真实客户端交互。
 - [ ] 连续打开两个交互工程时复用单实例，旧服务器和地址被清理。
 - [ ] 快速重复点击不会并发 `boot`、安装或启动服务器。
-- [ ] 关闭、失败和重试路径没有残留进程或过期预览地址。
+- [ ] 关闭、停止、失败和重试路径没有残留进程或过期预览地址；迟到的回调不会覆盖新工程。
+- [ ] 模型生成的失败重试只重跑目标 provider/model，保留其他结果；停止 WebContainer 不会被误认为取消模型请求。
 
 ### 安全与部署
 
 - [ ] 最终部署 URL 返回正确跨源隔离头。
-- [ ] 构建产物中没有 provider 服务端密钥。
+- [ ] 已分别验证 Provider 的实际 Base URL/origin 和其对最终应用 origin 的 CORS 结果；默认 origin 记录与部署配置一致。
+- [ ] 静态预览仍使用 DOMPurify、`sandbox=""` 和 `referrerPolicy="no-referrer"`；若部署 CSP，静态与 WebContainer 两条路径均已单独验证。
+- [ ] 构建产物中没有 provider 服务端密钥；浏览器 `localStorage`、Network 面板和源码中的 BYOK 风险已向部署者说明。
 - [ ] 如配置 `VITE_WEBCONTAINER_API_KEY`，确认它是受限客户端 key，并已配置 origin 和配额。
 - [ ] 不将 WebContainer 用作生产 API、数据库或密钥保管服务。
 - [ ] 正式商业生产前已根据 [StackBlitz WebContainer Enterprise](https://webcontainers.io/enterprise) 确认并取得所需商业许可。
