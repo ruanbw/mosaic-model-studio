@@ -10,6 +10,7 @@ import {
   PROVIDER_KIND_LABELS,
   type Provider,
   type ProviderDraft,
+  type ProviderKind,
 } from '../types'
 
 interface ProviderDialogProps {
@@ -40,6 +41,8 @@ export function ProviderDialog({
     register,
     handleSubmit,
     reset,
+    setValue,
+    getValues,
     watch,
     formState: { errors, isSubmitting },
   } = useForm<ProviderFormValues>({
@@ -47,6 +50,16 @@ export function ProviderDialog({
     defaultValues: emptyValues,
   })
   const kind = watch('kind')
+  const kindField = register('kind', {
+    onChange: (event) => {
+      const nextKind = event.target.value as ProviderKind
+      const currentBaseUrl = getValues('baseUrl')
+      const currentDefault = PROVIDER_KIND_DEFAULTS[kind].baseUrl
+      if (!currentBaseUrl || currentBaseUrl === currentDefault) {
+        setValue('baseUrl', PROVIDER_KIND_DEFAULTS[nextKind].baseUrl, { shouldValidate: true })
+      }
+    },
+  })
 
   useEffect(() => {
     if (!open) return
@@ -99,7 +112,7 @@ export function ProviderDialog({
               </label>
               <label className="field">
                 <span>接口协议</span>
-                <select {...register('kind')}>
+                <select {...kindField}>
                   {Object.entries(PROVIDER_KIND_LABELS).map(([value, label]) => (
                     <option key={value} value={value}>
                       {label}
@@ -120,6 +133,7 @@ export function ProviderDialog({
                 />
               </div>
               {errors.baseUrl && <small className="field-error">{errors.baseUrl.message}</small>}
+              <small className="field-hint">切换协议时会同步默认地址；自定义地址请确认与模型服务匹配。</small>
             </label>
 
             <label className="field">

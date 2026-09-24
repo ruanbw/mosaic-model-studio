@@ -8,7 +8,13 @@ export const providerDraftSchema = z.object({
     .string()
     .trim()
     .max(300, '地址最多 300 个字符')
-    .refine((value) => value === '' || /^https?:\/\/.+/.test(value), '请输入完整的 HTTP(S) 地址'),
+    .refine(
+      (value) =>
+        value === '' ||
+        /^https:\/\/.+/i.test(value) ||
+        /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(value),
+      '出于安全考虑，仅允许 HTTPS 或本机 HTTP 地址',
+    ),
   models: z
     .string()
     .trim()

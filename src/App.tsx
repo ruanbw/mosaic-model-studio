@@ -183,7 +183,12 @@ function App() {
     },
   })
 
-  const startGeneration = (models: ModelOption[], currentPrompt = prompt, useDemo = demoMode) => {
+  const startGeneration = (
+    models: ModelOption[],
+    currentPrompt = prompt,
+    useDemo = demoMode,
+    preserveResults = false,
+  ) => {
     if (isRunning) return
     if (!currentPrompt.trim()) {
       toast.error('先写一段提示词再开始生成')
@@ -195,7 +200,7 @@ function App() {
     }
     const controller = new AbortController()
     abortControllerRef.current = controller
-    replaceResults([])
+    if (!preserveResults) replaceResults([])
     setRunning(true)
     generationMutation.mutate({ models, prompt: currentPrompt.trim(), demoMode: useDemo, signal: controller.signal })
   }
@@ -208,7 +213,8 @@ function App() {
       toast.error('这个模型已经从提供商配置中移除')
       return
     }
-    startGeneration([model], prompt, demoMode)
+    removeResult(result.id)
+    startGeneration([model], prompt, demoMode, true)
   }
 
   const openAddProvider = () => {
