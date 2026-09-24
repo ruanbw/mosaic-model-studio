@@ -80,9 +80,9 @@ const sanitizeProvider = (value: unknown): Provider | null => {
     : fallback?.name ?? id
   const kind = isProviderKind(value.kind) ? value.kind : fallback?.kind ?? 'openai-compatible'
   const apiKey = typeof value.apiKey === 'string' ? value.apiKey.trim() : fallback?.apiKey ?? ''
-  const normalizedBaseUrl = typeof value.baseUrl === 'string'
-    ? normalizeProviderBaseUrl(kind, value.baseUrl)
-    : fallback?.baseUrl
+  const rawBaseUrl = typeof value.baseUrl === 'string' ? value.baseUrl.trim() : undefined
+  const normalizedBaseUrl = rawBaseUrl ? normalizeProviderBaseUrl(kind, rawBaseUrl) : fallback?.baseUrl
+  if (rawBaseUrl && normalizedBaseUrl && !isAllowedProviderBaseUrl(normalizedBaseUrl) && !fallback) return null
   const baseUrl = normalizedBaseUrl && isAllowedProviderBaseUrl(normalizedBaseUrl)
     ? normalizedBaseUrl
     : fallback?.baseUrl

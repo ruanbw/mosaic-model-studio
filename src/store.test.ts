@@ -47,8 +47,10 @@ describe('app store persistence', () => {
           prompt: 'persisted prompt',
           demoMode: false,
           theme: 'light',
+          results: [{ id: 'should-not-restore' }],
+          isRunning: true,
         },
-        version: 0,
+        version: 1,
       }),
     )
 
@@ -58,10 +60,42 @@ describe('app store persistence', () => {
 
     expect(state.providers).toHaveLength(1)
     expect(state.providers[0]?.id).toBe('custom')
-    expect(state.selectedModelKeys).toContain('custom::model-a')
+    expect(state.selectedModelKeys).toEqual(['custom::model-a'])
     expect(state.prompt).toBe('persisted prompt')
     expect(state.demoMode).toBe(false)
     expect(state.theme).toBe('light')
+    expect(state.results).toEqual([])
+    expect(state.isRunning).toBe(false)
+  })
+
+  it('drops a custom provider with an invalid non-empty URL', async () => {
+    storage.set(
+      'mosaic-model-studio',
+      JSON.stringify({
+        state: {
+          providers: [{
+            id: 'custom',
+            name: 'Custom',
+            kind: 'openai-compatible',
+            apiKey: 'should-not-leak',
+            baseUrl: 'http://evil.example.test',
+            models: ['model-a'],
+            accent: '#abcdef',
+            enabled: true,
+          }],
+          selectedModelKeys: ['custom::model-a'],
+        },
+        version: 1,
+      }),
+    )
+
+    const { useAppStore } = await loadStore()
+    await useAppStore.persist.rehydrate()
+    const state = useAppStore.getState()
+
+    expect(state.providers.some((provider) => provider.id === 'custom')).toBe(false)
+    expect(state.providers.every((provider) => !provider.apiKey)).toBe(true)
+    expect(state.selectedModelKeys).toEqual([])
   })
 
   it('falls back safely for malformed persisted data', async () => {
