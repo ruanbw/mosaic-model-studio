@@ -246,10 +246,11 @@ const normalizePath = (value: unknown, options: { allowHostScaffold?: boolean } 
   if (basename === '.env' || basename.startsWith('.env.')) {
     throw new Error(`项目文件不能包含环境变量：${errorInput(value)}`)
   }
-  if (FORBIDDEN_BASENAMES.has(basename) && !(options.allowHostScaffold && HOST_SCAFFOLD_PATHS.has(normalized.toLowerCase()))) {
+  const isHostScaffoldPath = options.allowHostScaffold === true && HOST_SCAFFOLD_PATHS.has(normalized.toLowerCase())
+  if (FORBIDDEN_BASENAMES.has(basename) && !isHostScaffoldPath) {
     throw new Error(`项目文件不能包含 lockfile 或包配置：${errorInput(value)}`)
   }
-  if (isForbiddenBuildPath(normalized) && !(options.allowHostScaffold && HOST_SCAFFOLD_PATHS.has(normalized.toLowerCase()))) {
+  if (isForbiddenBuildPath(normalized) && !isHostScaffoldPath) {
     throw new Error(`项目文件不能覆盖宿主构建配置：${errorInput(value)}`)
   }
   const dotIndex = basename.lastIndexOf('.')
@@ -260,14 +261,17 @@ const normalizePath = (value: unknown, options: { allowHostScaffold?: boolean } 
 }
 
 const assertTextContent = (content: string, path: string) => {
-  // Binary payloads decoded into a JSON string almost always retain NUL or C0 controls.
+  // Binary payloads decoded into a JSON string almost always retain NUL or C0/C1 controls.
   // Rejecting those controls also prevents terminal/control-character smuggling.
-  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(content)) {
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/.test(content)) {
     throw new Error(`项目文件不是安全文本：${path}`)
   }
 }
 
-const normalizeFiles = (value: unknown): ProjectFile[] => {
+const normalizeFiles = (
+  value: unknown,
+  options: { allowHostScaffold?: boolean } = {},
+): ProjectFile[] => {
   if (!Array.isArray(value)) throw new Error('GeneratedProject.files 必须是数组')
   if (value.length === 0) throw new Error('GeneratedProject.files 不能为空')
   if (value.length > MAX_FILES) throw new Error(`项目最多允许 ${MAX_FILES} 个文件`)
@@ -277,7 +281,7 @@ const normalizeFiles = (value: unknown): ProjectFile[] => {
 
   return value.map((file) => {
     if (!isRecord(file)) throw new Error('GeneratedProject.files 含有无效文件')
-    const path = normalizePath(file.path)
+    const path = normalizePath(file.path, options)
     const pathKey = path.toLowerCase()
     if (seen.has(pathKey)) throw new Error(`项目文件路径重复：${path}`)
     seen.add(pathKey)
@@ -406,18 +410,21 @@ export default defineConfig({
 }
 
 export const createProjectRuntimeFiles = (project: GeneratedProject): Record<string, string> => {
-  const normalizedFiles = project.files.map((file) => {
-    const path = normalizePath(file.path, { allowHostScaffold: true })
-    if (project.kind === 'web' && path.toLowerCase() === 'index.html') {
-      throw new Error('Web 项目不能覆盖固定 index.html scaffold')
-    }
-    return { path, content: file.content }
-  })
+  // Re-run the same model-input boundary at the export/runtime seam. Projects
+  // can arrive from demos or an in-memory caller without passing through raw JSON.
+  const normalizedFiles = normalizeFiles(project.files, { allowHostScaffold: true })
+  if (project.kind === 'web' && normalizedFiles.some((file) => file.path.toLowerCase() === 'index.html')) {
+    throw new Error('Web 项目不能覆盖固定 index.html scaffold')
+  }
 
   if (project.kind === 'static') {
     const index = normalizedFiles.find((file) => file.path === 'index.html')
     if (!index) throw new Error('Static 项目缺少 index.html')
-    return { 'index.html': index.content }
+    return { 'index.html': createStaticPreviewDocument(index.content, project.title) }
+  }
+
+  if (!normalizedFiles.some((file) => file.path === 'src/main.tsx')) {
+    throw new Error('Web 项目必须包含 src/main.tsx')
   }
 
   const files: Record<string, string> = {}
