@@ -52,7 +52,7 @@ export function ResultCard({ result, onExpand, onRetry, onRemove, busy }: Result
 
   return (
     <article
-      className={`min-w-0 overflow-hidden rounded-[10px] border bg-surface shadow-[0_8px_26px_color-mix(in_srgb,#000_10%,transparent)] ${result.status === 'error' ? 'border-red/30' : 'border-[#2d333b] hover:border-[#414954]'}`}
+      className={`min-w-0 overflow-hidden rounded-[10px] border bg-surface shadow-[0_8px_26px_color-mix(in_srgb,#000_10%,transparent)] ${result.status === 'error' ? 'border-red/30' : 'border-line hover:border-muted/40'}`}
       aria-busy={isBusy}
     >
       <header className="flex min-h-[61px] items-center justify-between gap-2.5 border-b border-line-soft px-3 py-2.5 pl-3.5">
@@ -78,7 +78,7 @@ export function ResultCard({ result, onExpand, onRetry, onRemove, busy }: Result
               {t(`results.${result.status}`)}
             </span>
           </span>
-          <button className="grid min-h-10 min-w-10 place-items-center rounded-md text-[#858d93] transition-colors hover:bg-[#252b33] hover:text-ink disabled:opacity-50" type="button" onClick={() => onExpand(result)} disabled={!canPreview} aria-label={`${isWebProject ? t('results.runProject') : t('results.expand')} ${result.model}`} title={isWebProject ? t('results.runProject') : t('results.expand')}>
+          <button className="grid min-h-10 min-w-10 place-items-center rounded-md text-[#858d93] transition-colors hover:bg-surface-hover hover:text-ink disabled:opacity-50" type="button" onClick={() => onExpand(result)} disabled={!canPreview} aria-label={`${isWebProject ? t('results.runProject') : t('results.expand')} ${result.model}`} title={isWebProject ? t('results.runProject') : t('results.expand')}>
             <Expand size={16} />
           </button>
         </div>
@@ -149,7 +149,7 @@ export function ResultCard({ result, onExpand, onRetry, onRemove, busy }: Result
         <span className="min-w-0 break-words [overflow-wrap:anywhere]">{result.elapsedMs ? `${(result.elapsedMs / 1000).toFixed(1)}s` : '—'}</span>
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           {result.status === 'success' && !isWebProject && result.html && <button className="inline-flex min-h-10 items-center gap-1.5 rounded-md px-2 text-[#aeb5b6] transition-colors hover:bg-[#252b33] hover:text-ink" type="button" onClick={() => onExpand(result)} aria-label={`${t('results.expand')} ${result.model}`} title={t('results.expand')}><Expand size={15} />{t('results.expand')}</button>}
-          <button className="grid min-h-10 min-w-10 place-items-center rounded-md text-[#858d93] transition-colors hover:bg-[#252b33] hover:text-ink disabled:opacity-50" type="button" onClick={copyResult} disabled={!result.html && !project} aria-label={isWebProject ? t('results.copyProjectLabel') : t('results.copyLabel')} title={isWebProject ? t('results.copyProjectLabel') : t('results.copyLabel')}><Copy size={15} /></button>
+          <button className="grid min-h-10 min-w-10 place-items-center rounded-md text-[#858d93] transition-colors hover:bg-surface-hover hover:text-ink disabled:opacity-50" type="button" onClick={copyResult} disabled={!result.html && !project} aria-label={isWebProject ? t('results.copyProjectLabel') : t('results.copyLabel')} title={isWebProject ? t('results.copyProjectLabel') : t('results.copyLabel')}><Copy size={15} /></button>
           <button className="grid min-h-10 min-w-10 place-items-center rounded-md text-[#858d93] transition-colors hover:bg-red/10 hover:text-red" type="button" onClick={() => onRemove(result.id)} disabled={busy || isBusy} aria-label={t('results.remove')} title={t('results.remove')}><Trash2 size={15} /></button>
         </div>
       </footer>
