@@ -4,6 +4,7 @@ import { Activity, ArrowUpRight, ChevronRight, Layers3, Settings2, ShieldCheck, 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useShallow } from 'zustand/react/shallow'
 import { generateWithProvider, providerErrorMessage } from './api'
 import { EmptyResults } from './components/EmptyResults'
 import { ModelPicker } from './components/ModelPicker'
@@ -52,7 +53,7 @@ const isEditableTarget = (target: EventTarget | null) => {
 
 function App() {
   const { t } = useTranslation()
-  const { providers, selectedModelKeys, prompt, demoMode, activeView, results, isRunning, setPrompt, setActiveView, toggleModel, clearModelSelection, addProvider, updateProvider, removeProvider, setDemoMode, setRunning, replaceResults, upsertResult, removeResult, clearResults, clearConfiguration, restoreDefaults } = useAppStore()
+  const { providers, selectedModelKeys, prompt, demoMode, activeView, results, isRunning, setPrompt, setActiveView, toggleModel, clearModelSelection, addProvider, updateProvider, removeProvider, setDemoMode, setRunning, replaceResults, upsertResult, removeResult, clearResults, clearConfiguration, restoreDefaults } = useAppStore(useShallow((state) => ({ providers: state.providers, selectedModelKeys: state.selectedModelKeys, prompt: state.prompt, demoMode: state.demoMode, activeView: state.activeView, results: state.results, isRunning: state.isRunning, setPrompt: state.setPrompt, setActiveView: state.setActiveView, toggleModel: state.toggleModel, clearModelSelection: state.clearModelSelection, addProvider: state.addProvider, updateProvider: state.updateProvider, removeProvider: state.removeProvider, setDemoMode: state.setDemoMode, setRunning: state.setRunning, replaceResults: state.replaceResults, upsertResult: state.upsertResult, removeResult: state.removeResult, clearResults: state.clearResults, clearConfiguration: state.clearConfiguration, restoreDefaults: state.restoreDefaults })))
   const [providerDialogOpen, setProviderDialogOpen] = useState(false)
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const providerDialogReturnFocusRef = useRef<HTMLElement | null>(null)
