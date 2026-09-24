@@ -82,7 +82,7 @@ function App() {
   const handleClear = () => { if (!window.confirm(t('settings.clearConfirm'))) return; clearConfiguration(); toast.success(t('settings.cleared')) }
   const handleViewChange = (view: AppView) => { setActiveView(view); setMobileSidebarOpen(false) }
   const loadDemo = () => { const demoModels = selectedModels.length > 0 ? selectedModels : modelOptions; if (demoModels.length === 0) { toast.error(t('models.none')); return }; replaceResults(createInitialDemoResults(demoModels)); toast.success(t('results.demoLoaded')) }
-  const viewTitle: Record<AppView, string> = { studio: 'Studio', providers: 'Providers', settings: 'Settings' }
+  const viewTitle: Record<AppView, string> = { studio: t('nav.studio'), providers: t('nav.providers'), settings: t('nav.settings') }
 
   return <div className="flex min-h-screen bg-canvas">
     <div className="w-[252px] flex-none max-[820px]:w-0"><Sidebar activeView={activeView} providerCount={providers.length} configuredCount={providers.filter((provider) => provider.apiKey.trim()).length} onViewChange={handleViewChange} onAddProvider={openAddProvider} mobileOpen={mobileSidebarOpen} onMobileOpenChange={setMobileSidebarOpen} /></div>
