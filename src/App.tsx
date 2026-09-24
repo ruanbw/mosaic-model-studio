@@ -95,8 +95,9 @@ function App() {
   useEffect(() => {
     if (initialDemoSeeded.current || results.length > 0 || modelOptions.length === 0) return
     initialDemoSeeded.current = true
-    replaceResults(createInitialDemoResults(modelOptions))
-  }, [modelOptions, replaceResults, results.length])
+    const demoModels = selectedModels.length > 0 ? selectedModels : modelOptions
+    replaceResults(createInitialDemoResults(demoModels))
+  }, [modelOptions, replaceResults, results.length, selectedModels])
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
