@@ -2,3 +2,9 @@ allowBuilds:
   '@google/genai': true
   esbuild: true
   protobufjs: true
+
+# This exact release was published less than 24 hours before the first deploy.
+# Keep the default minimum-release-age policy for every other dependency.
+minimumReleaseAge: 1440
+minimumReleaseAgeExclude:
+  - openai@7.23.0
