@@ -33,6 +33,7 @@ interface AppState {
   upsertResult: (result: GenerationResult) => void
   removeResult: (resultId: string) => void
   clearResults: () => void
+  clearConfiguration: () => void
   restoreDefaults: () => void
 }
 
@@ -105,6 +106,8 @@ export const useAppStore = create<AppState>()(
       removeResult: (resultId) =>
         set((state) => ({ results: state.results.filter((result) => result.id !== resultId) })),
       clearResults: () => set({ results: [] }),
+      clearConfiguration: () =>
+        set({ providers: [], selectedModelKeys: [], prompt: '', demoMode: true, results: [] }),
       restoreDefaults: () => set({ ...initialSettings }),
     }),
     {
@@ -121,14 +124,10 @@ export const useAppStore = create<AppState>()(
         return {
           ...current,
           ...settings,
-          providers:
-            Array.isArray(settings?.providers) && settings.providers.length > 0
-              ? settings.providers
-              : current.providers,
-          selectedModelKeys:
-            Array.isArray(settings?.selectedModelKeys) && settings.selectedModelKeys.length > 0
-              ? settings.selectedModelKeys
-              : current.selectedModelKeys,
+          providers: Array.isArray(settings?.providers) ? settings.providers : current.providers,
+          selectedModelKeys: Array.isArray(settings?.selectedModelKeys)
+            ? settings.selectedModelKeys
+            : current.selectedModelKeys,
         }
       },
     },

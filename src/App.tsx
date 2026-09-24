@@ -60,6 +60,7 @@ function App() {
     upsertResult,
     removeResult,
     clearResults,
+    clearConfiguration,
     restoreDefaults,
   } = useAppStore()
   const [providerDialogOpen, setProviderDialogOpen] = useState(false)
@@ -256,8 +257,7 @@ function App() {
 
   const handleClear = () => {
     if (!window.confirm('确定清除当前浏览器中的所有本地配置吗？')) return
-    clearResults()
-    restoreDefaults()
+    clearConfiguration()
     toast.success('本地配置已清除')
   }
 
