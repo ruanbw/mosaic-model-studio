@@ -114,6 +114,13 @@ export function ResultCard({ result, onExpand, onRetry, onRemove, busy }: Result
           </div>
         )}
         {result.status === 'queued' && <div className="flex size-full flex-col items-center justify-center gap-1 text-violet"><LoaderCircle className="animate-spin" size={22} /><strong className="mt-2 text-xs font-medium">{t('results.waiting')}</strong></div>}
+        {result.status === 'cancelled' && (
+          <div className="flex size-full min-w-0 flex-col items-center justify-center px-6 text-center">
+            <span className="grid size-9 place-items-center rounded-full border border-line bg-surface-soft text-muted">×</span>
+            <strong className="mt-4 text-xs font-medium text-ink">{t('results.cancelled')}</strong>
+            <small className="mt-1 font-mono text-[10px] text-muted">{t('results.cancelledCopy')}</small>
+          </div>
+        )}
         {result.status === 'error' && (
           <div className="flex size-full min-w-0 flex-col items-center justify-center px-5 text-center sm:px-6">
             <span className="grid size-9 shrink-0 place-items-center rounded-full border border-red/20 bg-red/10 text-red"><TriangleAlert size={18} /></span>
