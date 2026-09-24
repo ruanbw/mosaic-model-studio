@@ -20,9 +20,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           'app-vendor': ['@tanstack/react-query', 'dompurify', 'i18next', 'nanoid', 'react-hook-form', 'react-i18next', 'zod', 'zustand'],
-          'openai-sdk': ['openai'],
-          'anthropic-sdk': ['@anthropic-ai/sdk'],
-          'google-genai-sdk': ['@google/genai'],
           'webcontainer-vendor': ['@webcontainer/api'],
           'ui-vendor': ['lucide-react', '@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-popover', '@radix-ui/react-switch'],
         },
