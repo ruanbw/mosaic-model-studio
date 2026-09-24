@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
+import { isAllowedProviderBaseUrl, normalizeProviderBaseUrl } from './providerUrl'
 import {
   DEFAULT_PROMPT,
   DEFAULT_PROVIDERS,
@@ -79,8 +80,11 @@ const sanitizeProvider = (value: unknown): Provider | null => {
     : fallback?.name ?? id
   const kind = isProviderKind(value.kind) ? value.kind : fallback?.kind ?? 'openai-compatible'
   const apiKey = typeof value.apiKey === 'string' ? value.apiKey.trim() : fallback?.apiKey ?? ''
-  const baseUrl = typeof value.baseUrl === 'string'
-    ? value.baseUrl.trim() || undefined
+  const normalizedBaseUrl = typeof value.baseUrl === 'string'
+    ? normalizeProviderBaseUrl(kind, value.baseUrl)
+    : fallback?.baseUrl
+  const baseUrl = normalizedBaseUrl && isAllowedProviderBaseUrl(normalizedBaseUrl)
+    ? normalizedBaseUrl
     : fallback?.baseUrl
   const models = Array.isArray(value.models)
     ? [...new Set(value.models

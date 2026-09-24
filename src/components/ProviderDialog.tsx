@@ -7,6 +7,7 @@ import { useForm, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { toast } from 'sonner'
 import { fetchProviderModels, providerErrorMessage } from '../api'
 import { providerDraftSchema, type ProviderFormValues } from '../validation'
+import { isDefaultProviderBaseUrl } from '../providerUrl'
 import { PROVIDER_KIND_DEFAULTS, PROVIDER_KIND_LABELS, type Provider, type ProviderDraft, type ProviderKind } from '../types'
 
 interface ProviderDialogProps { open: boolean; onOpenChange: (open: boolean) => void; provider?: Provider | null; onSave: (draft: ProviderDraft, providerId?: string) => void; onDelete?: (provider: Provider) => void }
@@ -172,8 +173,9 @@ export function ProviderDialog({ open, onOpenChange, provider = null, onSave, on
     cancelModelRequest()
     const nextKind = event.target.value as ProviderKind
     const currentBaseUrl = getValues('baseUrl')
-    const currentDefault = PROVIDER_KIND_DEFAULTS[kind].baseUrl
-    if (!currentBaseUrl || currentBaseUrl === currentDefault) setValue('baseUrl', PROVIDER_KIND_DEFAULTS[nextKind].baseUrl, { shouldValidate: true })
+    if (!currentBaseUrl || isDefaultProviderBaseUrl(kind, currentBaseUrl)) {
+      setValue('baseUrl', PROVIDER_KIND_DEFAULTS[nextKind].baseUrl, { shouldValidate: true })
+    }
   } })
   const { ref: nameRhfRef, ...nameField } = register('name', { onChange: cancelModelRequest })
   const baseUrlField = register('baseUrl', { onChange: cancelModelRequest })

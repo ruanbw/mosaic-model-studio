@@ -2,6 +2,7 @@ import type OpenAI from 'openai'
 import { normalizeGeneratedProject } from './project/normalize'
 import type { GenerationOutput } from './project/types'
 import { PROJECT_GENERATION_SYSTEM_PROMPT } from './prompts'
+import { isAllowedProviderBaseUrl, normalizeProviderBaseUrl } from './providerUrl'
 import type { Provider } from './types'
 
 export type { GenerationOutput } from './project/types'
@@ -36,17 +37,12 @@ const PROJECT_JSON_SCHEMA = {
 }
 
 const getBaseUrl = (provider: Provider) => {
-  const baseUrl = provider.baseUrl?.trim()
+  const baseUrl = normalizeProviderBaseUrl(provider.kind, provider.baseUrl)
   if (!baseUrl) return undefined
-
-  const normalized = baseUrl.replace(/\/+$/, '')
-  if (provider.kind === 'anthropic' && normalized.endsWith('/v1')) {
-    return normalized.slice(0, -'/v1'.length)
+  if (!isAllowedProviderBaseUrl(baseUrl)) {
+    throw new Error(`${provider.name} 的 Base URL 不安全`)
   }
-  if (provider.kind === 'gemini' && normalized.endsWith('/v1beta')) {
-    return normalized.slice(0, -'/v1beta'.length)
-  }
-  return normalized
+  return baseUrl
 }
 
 const assertApiKey = (provider: Provider) => {
