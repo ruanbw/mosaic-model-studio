@@ -127,7 +127,7 @@ export function ResultCard({ result, onExpand, onRetry, onRemove, busy }: Result
             <strong className="mt-4 text-xs font-medium text-ink">{t('results.failed')}</strong>
             <p className="mt-2 line-clamp-2 max-w-[350px] break-words text-[11px] leading-[1.55] text-[#777f86] [overflow-wrap:anywhere]">{errorMessage}</p>
             <details className="group mt-2 w-full max-w-[350px] text-left">
-              <summary className="flex min-h-10 cursor-pointer list-none items-center justify-center gap-1.5 text-[10px] font-semibold text-muted transition-colors hover:text-ink [&::-webkit-details-marker]:hidden">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-center gap-1.5 text-[10px] font-semibold text-muted transition-colors hover:text-ink [&::-webkit-details-marker]:hidden">
                 {t('results.expand')}
                 <ChevronDown className="transition-transform group-open:rotate-180" size={14} />
               </summary>

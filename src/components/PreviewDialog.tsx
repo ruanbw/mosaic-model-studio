@@ -142,7 +142,7 @@ export function PreviewDialog({ result, open, onOpenChange }: PreviewDialogProps
 
                 {visibleLogs && (
                   <details className="group max-h-[148px] shrink-0 overflow-y-auto border-t border-line-soft bg-[#101318] px-3 py-1.5">
-                    <summary className="flex min-h-8 cursor-pointer list-none items-center gap-1.5 font-mono text-[8px] uppercase tracking-[0.1em] text-faint [&::-webkit-details-marker]:hidden">
+                    <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 font-mono text-[8px] uppercase tracking-[0.1em] text-faint [&::-webkit-details-marker]:hidden">
                       <Terminal size={10} />
                       {t('results.web.logs')}
                       <ChevronDown className="ml-auto transition-transform group-open:rotate-180" size={12} />
