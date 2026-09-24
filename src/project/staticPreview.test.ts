@@ -112,6 +112,10 @@ describe('runtime file policy', () => {
       files: [{ path: 'index.html', content: '<h1>Hello</h1>' }],
     }
 
-    expect(createProjectRuntimeFiles(project)).toEqual({ 'index.html': '<h1>Hello</h1>' })
+    const files = createProjectRuntimeFiles(project)
+    expect(Object.keys(files)).toEqual(['index.html'])
+    expect(files['index.html']).toContain("Content-Security-Policy")
+    expect(files['index.html']).toContain('<h1>Hello</h1>')
+    expect(files['index.html']).toContain('<title>Static</title>')
   })
 })
