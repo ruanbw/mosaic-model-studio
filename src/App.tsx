@@ -22,6 +22,7 @@ import { ProvidersView } from './components/ProvidersView'
 import { ResultCard } from './components/ResultCard'
 import { SettingsView } from './components/SettingsView'
 import { Sidebar } from './components/Sidebar'
+import { ThemePicker } from './components/ThemePicker'
 import { createDemoResult, createInitialDemoResults } from './demo'
 import { useAppStore } from './store'
 import type { AppView, GenerationResult, ModelOption, Provider, ProviderDraft } from './types'
@@ -311,6 +312,7 @@ function App() {
           </div>
           <div className="topbar-actions">
             <div className="local-status"><span className="status-pulse" />Local workspace</div>
+            <ThemePicker />
             <button className="icon-button subtle" type="button" onClick={() => toast.info('所有密钥和配置都只保存在当前浏览器。')} aria-label="安全说明" title="安全说明"><ShieldCheck size={17} /></button>
             <button className="icon-button subtle" type="button" onClick={() => handleViewChange('settings')} aria-label="打开设置" title="设置"><Settings2 size={17} /></button>
           </div>

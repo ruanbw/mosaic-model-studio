@@ -10,6 +10,7 @@ import {
   type PersistedSettings,
   type Provider,
   type ProviderDraft,
+  type ThemeMode,
 } from './types'
 
 interface AppState {
@@ -17,6 +18,7 @@ interface AppState {
   selectedModelKeys: string[]
   prompt: string
   demoMode: boolean
+  theme: ThemeMode
   activeView: AppView
   results: GenerationResult[]
   isRunning: boolean
@@ -28,6 +30,7 @@ interface AppState {
   updateProvider: (providerId: string, updates: Partial<Omit<Provider, 'id'>>) => void
   removeProvider: (providerId: string) => void
   setDemoMode: (enabled: boolean) => void
+  setTheme: (theme: ThemeMode) => void
   setRunning: (running: boolean) => void
   replaceResults: (results: GenerationResult[]) => void
   upsertResult: (result: GenerationResult) => void
@@ -42,6 +45,7 @@ const initialSettings: PersistedSettings = {
   selectedModelKeys: DEFAULT_SELECTED_MODEL_KEYS,
   prompt: DEFAULT_PROMPT,
   demoMode: true,
+  theme: 'dark' as ThemeMode,
 }
 
 const parseModels = (models: string) =>
@@ -99,6 +103,7 @@ export const useAppStore = create<AppState>()(
           ),
         })),
       setDemoMode: (demoMode) => set({ demoMode }),
+      setTheme: (theme) => set({ theme }),
       setRunning: (isRunning) => set({ isRunning }),
       replaceResults: (results) => set({ results }),
       upsertResult: (result) =>
@@ -124,6 +129,7 @@ export const useAppStore = create<AppState>()(
         selectedModelKeys: state.selectedModelKeys,
         prompt: state.prompt,
         demoMode: state.demoMode,
+        theme: state.theme,
       }),
       merge: (persisted, current) => {
         const settings = persisted as Partial<PersistedSettings> | undefined
@@ -134,6 +140,7 @@ export const useAppStore = create<AppState>()(
           selectedModelKeys: Array.isArray(settings?.selectedModelKeys)
             ? settings.selectedModelKeys
             : current.selectedModelKeys,
+          theme: settings?.theme ?? current.theme,
         }
       },
     },

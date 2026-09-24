@@ -2,6 +2,8 @@ export type ProviderKind = 'openai' | 'anthropic' | 'gemini' | 'openai-compatibl
 
 export type AppView = 'studio' | 'providers' | 'settings'
 
+export type ThemeMode = 'dark' | 'light' | 'system'
+
 export type GenerationStatus = 'queued' | 'running' | 'success' | 'error'
 
 export interface Provider {
@@ -53,6 +55,7 @@ export interface PersistedSettings {
   selectedModelKeys: string[]
   prompt: string
   demoMode: boolean
+  theme: ThemeMode
 }
 
 export const PROVIDER_KIND_LABELS: Record<ProviderKind, string> = {
