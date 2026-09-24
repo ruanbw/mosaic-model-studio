@@ -43,8 +43,12 @@ export const toPreviewDocument = (value: string): string => {
   })
 }
 
-const assertConfigured = (provider: Provider) => {
+const assertApiKey = (provider: Provider) => {
   if (!provider.apiKey.trim()) throw new Error(`${provider.name} 尚未配置 API Key`)
+}
+
+const assertGenerationConfigured = (provider: Provider) => {
+  assertApiKey(provider)
   if (provider.models.length === 0) throw new Error(`${provider.name} 尚未添加模型`)
 }
 
@@ -87,7 +91,7 @@ export const fetchProviderModels = async (
   provider: Provider,
   options: GenerationOptions = {},
 ): Promise<string[]> => {
-  assertConfigured(provider)
+  assertApiKey(provider)
   const modelIds: string[] = []
 
   if (provider.kind === 'gemini') {
@@ -185,7 +189,7 @@ export const generateWithProvider = async (
   prompt: string,
   options: GenerationOptions = {},
 ): Promise<GenerationOutput> => {
-  assertConfigured(provider)
+  assertGenerationConfigured(provider)
   options.signal?.throwIfAborted()
 
   if (provider.kind === 'anthropic') {
