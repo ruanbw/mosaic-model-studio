@@ -31,7 +31,7 @@ WebContainer 用于浏览器内的工程预览，不是生产应用后端，也�
 - TanStack Query：异步生成任务状态
 - i18next / react-i18next：中文与 English
 - Lucide React：图标
-- OpenAI 官方 SDK、Anthropic 官方 SDK、Google `@google/genai` 官方 SDK
+- OpenAI 官方 SDK、Anthropic 官方 SDK、Google `@google/genai` 官方 SDK（按 provider 类型动态 import，首次获取模型或生成时才加载）
 - OpenRouter 通过 OpenAI 官方 SDK 的兼容接口调用
 - DOMPurify：模型输出 HTML 清理
 
@@ -47,10 +47,14 @@ pnpm dev
 打开终端输出的本地地址即可。生产构建与本地预览：
 
 ```bash
+pnpm test
 pnpm run typecheck
+pnpm run typecheck:test
 pnpm run build
 pnpm run preview
 ```
+
+`pnpm test` 运行仓库中的 Vitest Node 单元测试（provider URL、请求取消、项目归一化、持久化和表单校验）；`pnpm run typecheck`/`pnpm run typecheck:test` 检查应用与测试相关的 TypeScript，`pnpm run build` 还会验证 Vite 生产构建。当前基线没有提交 `playwright.config.*` 或 E2E spec，因此 `pnpm exec playwright test` 不是本仓库自带的可重复套件；如果集成流水线挂载了 `tests/e2e` 和 Playwright 配置，可运行 `pnpm exec playwright test --project=chromium`，并把真实浏览器、Provider CORS 和 WebContainer 网络条件纳入验收。
 
 Vite 的开发服务器和 `preview` 都会返回跨源隔离响应头。WebContainer 首次启动以及 Vite 工程首次安装依赖时需要下载和准备工作，因此交互预览可能比静态页面慢；后续复用同一实例不代表可以绕过网络、浏览器或许可证限制。
 
@@ -94,6 +98,8 @@ Cross-Origin-Embedder-Policy: credentialless
 
 保存后，回到 Studio 的「对比模型」选择器中勾选一个或多个模型。
 
+Provider SDK 会根据协议按需动态加载：获取模型列表和发起生成请求时才加载对应的 OpenAI、Anthropic 或 `@google/genai` chunk；首屏不会同时下载三套 SDK。OpenRouter 仍复用 OpenAI SDK 的兼容接口。动态 chunk 的文件名由 Vite 决定，部署时不要依赖固定文件名，并应保证这些 chunk 能被 CDN 正常提供。
+
 Provider 的默认地址如下；origin 不包含路径中的 `/v1` 或 `/v1beta`。自定义 Base URL 会替换默认地址，浏览器仍从最终应用 origin 直连 Provider，因此必须验证目标服务的 CORS 策略：
 
 | 协议 | 默认 Base URL | 默认 origin |
@@ -105,7 +111,10 @@ Provider 的默认地址如下；origin 不包含路径中的 `/v1` 或 `/v1beta
 
 ### 取消与重试
 
-生成期间 Studio 的“停止”按钮会中止当前模型请求，并将尚未完成的结果标记为“已取消”；关闭或停止 WebContainer 只停止工程运行时。失败或取消结果卡上的“重试”会针对同一个 provider/model 发起全新请求，优先复用该结果保存的 prompt 与演示模式输入，保留其他结果，不续传部分输出，也不会自动重试其他模型。WebContainer 的停止、替换和重新打开按单实例状态机串行清理，详见 [`docs/webcontainer.md`](docs/webcontainer.md)。
+- 一次生成批次共享一个 `AbortController`，最多同时运行 3 个模型请求。生成期间的“停止”会中止本批次尚未完成的请求，把排队/运行中的结果标为“已取消”，并使迟到响应失效；已经成功的结果不会被回滚。
+- 失败或取消结果卡上的“重试”只针对同一个 provider/model，启动一次全新的运行（demo 模式仍不调用 API）并优先使用该结果保存的 prompt 与演示模式输入。它会替换原卡、保留其他结果，不续传部分输出，也不会自动重试其他模型；生成进行中重试按钮不可用。
+- OpenAI 与 Anthropic SDK 配置了 `maxRetries: 1` 的传输层重试，这不等同于结果卡上的“重试”；取消或网络超时发生在供应商已接收请求之后，仍可能产生一次额外请求或费用。Gemini 的重试细节由所用 SDK 版本决定。
+- 关闭或移除预览、停止 WebContainer 只停止工程运行时，不会撤销已经发出的模型请求。Provider 对话框关闭、字段改变或删除时也会取消正在进行的模型列表请求，迟到结果不会覆盖表单。WebContainer 的停止、替换和重新打开按单实例状态机串行清理，详见 [`docs/webcontainer.md`](docs/webcontainer.md)。
 
 ## 安全与生产边界
 
@@ -119,13 +128,21 @@ Provider 的默认地址如下；origin 不包含路径中的 `/v1` 或 `/v1beta
 - 生产部署前增加自己的后端代理、认证、限流、额度控制和服务端密钥管理
 - 供应商是否允许浏览器直连取决于其 CORS 策略；如果遇到跨域错误，应使用后端代理，而不是把密钥写进前端代码
 
-模型输出会被视为不可信内容。归一化后的静态结果会经过 DOMPurify、宿主生成的 CSP、`sandbox=""` iframe 和 `referrerPolicy="no-referrer"` 隔离，仍不要把它当作可信代码直接部署；demo fixture 是可信的本地示例，不等同于不可信模型输出。生产若统一设置 CSP，必须分别验证静态预览和 WebContainer 预览，不能用移除 sandbox 的方式排错。WebContainer 提供浏览器内的 Node.js 兼容运行环境，不代表代码通过了生产安全审计；生成的工程仍可能消耗配额、访问网络或包含有漏洞的依赖。WebContainer 不是生产后端，不要用它承载生产 API、持久数据或保密服务。
+模型输出会被视为不可信内容。归一化后的静态结果会经过 DOMPurify、宿主生成的固定 CSP `meta`、`sandbox=""` iframe 和 `referrerPolicy="no-referrer"` 隔离，仍不要把它当作可信代码直接部署。当前固定策略包含 `default-src 'none'`、`script-src 'none'`、`connect-src 'none'`，禁止脚本、网络、frame、worker 和外部资源；它是纵深防御，不是完整安全审计。demo fixture 是可信的本地示例，不等同于不可信模型输出。生产若统一设置 CSP，必须分别验证静态预览和 WebContainer 预览，不能用移除 sandbox 的方式排错；不要把静态策略未经测试地复制到主应用。WebContainer 提供浏览器内的 Node.js 兼容运行环境，不代表代码通过了生产安全审计；生成的工程仍可能消耗配额、访问网络或包含有漏洞的依赖。WebContainer 不是生产后端，不要用它承载生产 API、持久数据或保密服务。
 
 ## POC 与商业生产许可
 
 本仓库当前面向 **POC、开发验证和内部评估**。POC 中使用 WebContainer，不代表可以把它直接用于商业生产。StackBlitz 官方要求商业生产使用具备相应商业许可；正式上线前必须确认使用场景、用户规模和部署方式，并按官方条款取得许可。许可详情见 [StackBlitz WebContainer Enterprise](https://webcontainers.io/enterprise)。
 
 生产发布还应补齐认证、服务端密钥管理、滥用防护、可观测性、依赖治理，以及供应商和浏览器兼容性评估。
+
+## 当前限制与剩余风险
+
+- Vitest 目前是 Node 环境单元测试，不能证明真实浏览器的 CORS、跨源隔离、WebContainer 启动/清理、iframe 行为或 Provider 计费；本基线也没有提交 Playwright E2E 套件。部署验收必须使用支持 WebContainer 的浏览器和最终 URL。
+- Provider SDK 按需 chunk 首次加载可能受网络、CDN 缓存和 MIME 配置影响；Provider 的模型列表、结构化输出兼容性、CORS 白名单、速率限制和服务端默认地址仍由外部服务决定。
+- BYOK key 保存在浏览器 `localStorage` 并直接从浏览器发送；HTTPS、静态 CSP 和 sandbox 都不能把它变成服务端秘密。传输层自动重试与用户重试都可能造成重复请求或费用。
+- 内置 demo 的静态 fixture 是可信本地内容，不能用来证明不可信模型输出已经经过完整归一化；生产 CDN/代理还必须自行保留 COOP/COEP、配置适合主应用和 WebContainer 的 CSP，并在修改后清理缓存。
+- WebContainer 运行时、生成代码和安装依赖仍可能访问网络、消耗配额或包含漏洞；商业使用、浏览器支持、托管响应头和运行时许可证需要在发布前单独确认。
 
 ## 目录结构
 

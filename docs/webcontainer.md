@@ -30,10 +30,10 @@ Prompt + selected providers
                             interactive preview
 ```
 
-- 模型提供商 SDK 在浏览器中按 BYOK 模式调用；跨域受限时必须改走后端代理。
+- 模型提供商 SDK 在浏览器中按 BYOK 模式调用；OpenAI、Anthropic 和 `@google/genai` 都通过动态 `import()` 按 provider 类型加载，获取模型列表或发起生成时才下载对应 chunk。OpenRouter 复用 OpenAI SDK 的兼容接口；动态 chunk 的文件名由 Vite 决定，部署不能依赖固定名称。
 - 静态路径不启动 Node.js，保留无脚本权限的沙箱边界。
 - 交互路径复用单个 WebContainer。依赖安装和开发服务器都发生在这个实例内，不能把每个预览结果当作独立运行时。
-- `@webcontainer/api` 在生产构建中归入 `webcontainer-vendor` 分包，避免 WebContainer SDK 与普通应用界面共同更新。
+- `@webcontainer/api` 在生产构建中归入 `webcontainer-vendor` 分包，避免 WebContainer SDK 与普通应用界面共同更新；模型 Provider SDK 保持按需加载，不要为了“统一分包”把它们重新静态导入。
 - WebContainer 的可选 key 与模型 provider key 是两类不同凭据，不能互相替代。
 
 ## Provider 默认 origin 与浏览器直连
@@ -49,6 +49,8 @@ Prompt + selected providers
 
 Provider 的默认 origin 是请求目的地的 origin，不是应用 origin，也不是供应商的 CORS 白名单。浏览器会从当前页面的 origin（例如 `https://studio.example.com`）直接发起 SDK 请求；该页面 origin 必须被相应服务或自建网关的 CORS 策略允许。OpenRouter 请求还会携带当前页面的 `HTTP-Referer`，但这不替代 CORS 配置。遇到跨域失败时，应改用受控的后端代理，不要把 key 写进代理响应或前端配置。
 
+当前 URL 规则也由宿主统一执行：会去掉首尾空白和末尾 `/`；旧版 Anthropic `/v1`、Gemini `/v1beta` 默认值会规范化为表中不带版本路径的地址；自定义网关的路径会原样保留。运行时和表单只接受 HTTPS，或仅限本机 `localhost`、`127.*`、`[::1]` 的 HTTP；带用户名/密码、query、fragment 或格式错误的 URL 不会发出请求。校验 Base URL 不等于校验 CORS，后者仍要针对最终应用 origin 单独测试。
+
 如果把 Base URL 留空，SDK 可能使用其自身版本对应的默认地址；不要把“留空”和上表的内置默认地址混为一谈。生产验收应记录实际使用的 Base URL、origin 和 CORS 结果，尤其是自定义 OpenAI-compatible 网关。
 
 ## 生命周期状态机
@@ -60,9 +62,10 @@ idle
   │ activate project
   ▼
 booting ──failure/timeout──► error
+  │                         └─缺少跨源隔离/SAB──► unsupported
   │ mount validated files
   ▼
-mounting ──failure──► error
+mounting ──failure/timeout──► error
   │ install dependencies
   ▼
 installing ──failure/cancel/timeout──► error
@@ -81,9 +84,9 @@ stopping ──cleanup──► idle
 
 运行规则：
 
-1. `idle` 和 `error` 可以接收新的工程激活请求；重试必须先清理失败状态，不能假定半启动的服务仍可用。
-2. `booting` 期间等待受限的 WebContainer 启动超时；`mounting` 仅写入已校验的最小文件集合，不接受任意服务端路径或宿主机文件。
-3. `booting`、`mounting`、`installing`、`starting` 期间串行化重复启动请求。依赖安装或服务启动较慢时展示阶段状态，不虚构耗时。
+1. `idle`、`error` 和 `unsupported` 可以接收新的工程激活请求；重试必须先清理失败状态，不能假定半启动的服务仍可用。
+2. `booting` 期间等待受限的 WebContainer 启动超时（当前 45 秒）；`mounting` 仅写入已校验的最小文件集合，不接受任意服务端路径或宿主机文件，挂载转换当前上限为 15 秒。
+3. `booting`、`mounting`、`installing`、`starting` 期间串行化重复启动请求。依赖安装或服务启动较慢时展示阶段状态，不虚构耗时；安装和 Vite 启动当前分别有 180 秒、45 秒上限。
 4. `ready` 后才把 Vite 预览地址交给预览 UI。
 5. 替换工程时先使旧激活失效并终止旧开发服务器，再清理旧工程目录并复用同一个容器实例。
 6. 关闭预览、显式停止、卸载页面或发生不可恢复错误时终止活动进程并回到 `idle` 或 `error`。迟到的启动结果不得覆盖更新的工程状态。
@@ -96,9 +99,11 @@ stopping ──cleanup──► idle
 
 ### 模型生成
 
-- Studio 在生成期间显示“停止”按钮；它会调用 `AbortController.abort()`，将尚未完成的结果标记为“已取消”，并阻止迟到响应覆盖结果卡。
-- 关闭预览、移除结果或停止 WebContainer **不会**取消已经发出的模型请求；模型生成与工程运行时是两条独立生命周期。
-- 失败或取消结果卡上的“重试”只针对对应的 provider/model，启动一次全新的请求；它优先使用结果保存的 prompt 与演示模式输入，不续传部分输出，也不会自动重试其他模型。
+- Studio 在生成期间显示“停止”按钮；每个生成批次共享一个 `AbortController`，当前最多有 3 个 worker。停止会中止本批次尚未完成的模型请求，把排队/运行中的结果标记为“已取消”，并通过运行 token 丢弃迟到响应；已经成功的结果不会被回滚。
+- 关闭预览、移除结果或停止 WebContainer **不会**取消已经发出的模型请求；模型生成与工程运行时是两条独立生命周期。停止模型请求也不保证供应商立刻停止计费或后台工作。
+- 失败或取消结果卡上的“重试”只针对对应的 provider/model，启动一次全新的运行（demo 模式仍不调用 API）；它优先使用结果保存的 prompt 与演示模式输入，不续传部分输出，也不会自动重试其他模型。重试会替换原卡并保留其他结果，生成进行中按钮不可用。
+- OpenAI 和 Anthropic SDK 配置了 `maxRetries: 1` 的传输层重试；它与结果卡上的用户重试是两套机制。Gemini 的重试策略由 SDK 版本决定。网络超时、取消竞态或用户重试可能让供应商收到重复请求并产生额外费用。
+- Provider 对话框中的“获取模型”是独立的可取消请求：关闭对话框、修改协议/地址/密钥/模型字段或删除 Provider 都会使旧请求失效，迟到的模型列表不能覆盖当前表单。
 
 ### WebContainer
 
@@ -110,15 +115,17 @@ stopping ──cleanup──► idle
 
 静态结果和交互工程使用不同的安全边界。静态结果先经过 DOMPurify，再放入 `sandbox=""` iframe，并设置 `referrerPolicy="no-referrer"`；空的 sandbox 不授予脚本、同源访问、表单、弹窗或顶层导航权限。这些措施是当前代码提供的隔离，不应被描述成完整的浏览器安全审计。
 
-归一化后的静态结果会由宿主生成固定的 CSP `meta`，并继续使用 `sandbox=""` 与 `referrerPolicy="no-referrer"`；demo fixture 是可信本地示例，不等同于不可信模型输出。若部署平台统一设置 CSP，仍必须在最终 URL 同时验证静态预览和 WebContainer 预览；不要为了修复静态页面而移除 sandbox，也不要把只适用于静态产物的策略未经测试地复制到主应用。
-
-如果将静态 HTML 独立部署而不是通过当前的 `srcDoc` 预览，可以把下面的策略作为收紧资源访问的起点，再按实际图片、字体和样式来源调整：
+归一化后的静态结果会先由 DOMPurify 清理，再由宿主把固定的 CSP 写入 `srcDoc` 的 `<meta http-equiv="Content-Security-Policy">`，并继续使用 `sandbox=""` 与 `referrerPolicy="no-referrer"`。模型提供的 `meta`/`base`/`link`/脚本等头部内容会被移除，不能替换宿主策略。当前固定策略是：
 
 ```http
-Content-Security-Policy: default-src 'none'; script-src 'none'; style-src 'unsafe-inline' https:; img-src data: https:; font-src data: https:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'
+Content-Security-Policy: default-src 'none'; base-uri 'none'; connect-src 'none'; font-src data:; form-action 'none'; frame-src 'none'; child-src 'none'; img-src data: blob:; media-src data: blob:; object-src 'none'; script-src 'none'; style-src 'unsafe-inline'; worker-src 'none'
 ```
 
-该示例不是 Mosaic 主应用的完整 CSP：主应用还需要为自身 bundle、Provider API 和 WebContainer 运行时/预览 origin 配置相应的 `script-src`、`connect-src`、`frame-src` 等指令。静态 CSP 只能减少资源滥用，不能保护浏览器中的 provider key。
+因此当前静态预览不允许脚本、网络请求、外部图片/字体、frame、worker 或媒体源；`style-src 'unsafe-inline'` 只放行内联样式。内置 demo 的静态 fixture 是可信本地示例，当前不会经过不可信模型输出的归一化/DOMPurify/CSP 注入路径，不能拿它证明模型输出的安全边界。若部署平台统一设置 CSP，仍必须在最终 URL 同时验证静态预览和 WebContainer 预览；不要为了修复静态页面而移除 sandbox，也不要把只适用于静态产物的策略未经测试地复制到主应用。
+
+如果将静态 HTML 独立部署而不是通过当前的 `srcDoc` 预览，可以把上面的策略作为响应头起点，再按实际图片、字体和样式来源调整；一旦放宽 `img-src`、`font-src` 或 `style-src`，就要重新做安全和浏览器验证。
+
+该策略不是 Mosaic 主应用的完整 CSP：主应用还需要为自身 bundle、Provider API 和 WebContainer 运行时/预览 origin 配置相应的 `script-src`、`connect-src`、`frame-src` 等指令。`index.html` 还包含主题初始化内联脚本，不能直接套用静态示例的 `script-src 'none'`。静态 CSP 只能减少资源滥用，不能保护浏览器中的 provider key。
 
 ## 单实例限制
 
@@ -143,9 +150,17 @@ Provider API key 会保存在当前浏览器的 `localStorage`，并由浏览器
 
 静态 sandbox 和 CSP 是纵深防御，不是密钥托管方案。生产环境应使用认证后的后端代理，在服务端保存 Provider key，并实施用户隔离、限流、额度控制、审计、依赖治理和密钥轮换；不要把高价值 BYOK key 作为多租户产品的默认凭据。怀疑 key 泄露时先撤销/轮换，再检查构建产物、CDN 缓存、CI 日志和浏览器 Network 记录。
 
+## 剩余风险与集成假设
+
+- **测试覆盖边界。** 当前 Vitest 是 Node 环境单元测试，且项目归一化测试 mock 了 DOMPurify；没有提交真实浏览器 E2E。它不能证明 Provider CORS、SDK 动态 chunk、iframe 隔离、COOP/COEP 或 WebContainer 进程清理。Playwright 套件若由集成层提供，必须使用最终部署 URL 和真实 Chromium/网络条件。
+- **外部服务差异。** Provider 的模型列表、结构化输出兼容性、默认地址、CORS 白名单、速率限制和 SDK 版本可能变化；兼容网关不支持 JSON mode 时会退回普通文本再由宿主归一化，失败响应仍可能产生计费。
+- **取消与重复请求。** `AbortController` 是客户端取消信号，不能保证供应商停止处理或撤销费用；SDK 的传输层重试和结果卡重试可能造成重复请求。生产代理需要幂等、限流和审计策略。
+- **部署配置。** `vite.config.ts` 只为本地 dev/preview 设置响应头；最终 HTML、HTTPS、重定向、CDN 缓存和 CSP 由托管方负责。全局 CSP 还必须兼容主应用的 bundle、Provider API、WebContainer iframe 及 `index.html` 的主题初始化脚本。
+- **内容与资源。** 生成的 Web 工程和安装依赖可访问网络、消耗配额或包含漏洞；静态 CSP 会阻断外部资源，demo fixture 又是可信本地内容，不能把任一路径当成生产安全审计。商业生产还需确认 WebContainer 许可、配额和支持矩阵。
+
 ## 跨源隔离与生产部署
 
-WebContainer 需要应用处于跨源隔离状态。开发服务器和 Vite preview 由 `vite.config.ts` 提供以下头：
+WebContainer 需要应用处于跨源隔离状态。当前 `vite.config.ts` 在 `server.headers` 和 `preview.headers` 两处都提供以下响应头；这只覆盖本地 Vite 开发/预览，不会自动写入 `dist` 的生产托管配置：
 
 ```http
 Cross-Origin-Opener-Policy: same-origin
@@ -184,6 +199,27 @@ Cross-Origin-Embedder-Policy: credentialless
 ```
 
 `crossOriginIsolated` 应为 `true`，且 `sharedArrayBuffer` 应为 `true`。随后打开一个 WebContainer 工程，确认预览 URL 使用 HTTPS（或本机 loopback HTTP）、不与主应用 origin 相同，并能在最终部署页面中完成依赖安装和交互。若 CDN 返回了旧缓存，重复上述检查而不是只重启本地 preview。
+
+### Vitest 与 Playwright 验证
+
+仓库声明的 Vitest/typecheck/build 命令可以直接运行：
+
+```bash
+pnpm test
+pnpm exec vitest run src/api.test.ts src/providerUrl.test.ts src/project/normalize.test.ts src/store.test.ts src/validation.test.ts
+pnpm run typecheck
+pnpm run typecheck:test
+pnpm run build
+```
+
+`vitest.config.ts` 使用 Node 环境，当前测试覆盖取消错误映射、Provider URL 规则、项目归一化、持久化边界和表单校验；它不会启动真实 Provider、浏览器 iframe 或 WebContainer。当前基线没有 `playwright.config.*`、`tests/e2e` 或已声明的 `@playwright/test` 依赖，因此不要把 `pnpm exec playwright test` 的“no tests found”当成通过。若集成流水线提供浏览器套件，应在安装 Chromium 后运行：
+
+```bash
+pnpm exec playwright install chromium
+pnpm exec playwright test --project=chromium
+```
+
+该 Playwright 验收至少应在最终部署 URL 检查响应头、`window.crossOriginIsolated`、`SharedArrayBuffer`、静态 iframe 的 sandbox/CSP，以及 WebContainer 的安装、替换和停止；若使用 demo fixture，要单独标记它没有覆盖不可信模型输出的归一化路径。缺少这套真实浏览器验证时，Vitest 通过不能证明跨源隔离、Provider CORS 或运行时清理已经成立。
 
 ## `VITE_WEBCONTAINER_API_KEY`
 
@@ -240,8 +276,9 @@ VITE_WEBCONTAINER_API_KEY=
 
 ### 本地配置
 
-- [ ] `pnpm typecheck` 通过。
-- [ ] `pnpm build` 通过，并存在 `webcontainer-vendor` 分包。
+- [ ] `pnpm test`（Vitest）通过；需要定向时使用上节的 `pnpm exec vitest run ...`。
+- [ ] `pnpm typecheck`、`pnpm typecheck:test` 和 `pnpm build` 通过，并存在 `webcontainer-vendor` 分包。
+- [ ] 构建/预览时确认 Provider SDK 是按需 chunk；不要把所有 SDK 重新静态导入首屏 bundle。
 - [ ] `pnpm dev` 的 HTML 响应包含 COOP `same-origin` 和 COEP `credentialless`。
 - [ ] `pnpm preview` 的 HTML 响应包含相同两项头。
 - [ ] 生产代理/CDN 的**最终公开 URL**（含重定向后的最终响应）仍返回上述两项头；已清理旧 CDN 缓存。
@@ -250,19 +287,20 @@ VITE_WEBCONTAINER_API_KEY=
 
 ### 功能
 
-- [ ] 静态 HTML 经 DOMPurify 清理并在 `sandbox` iframe 中运行。
+- [ ] 静态 HTML 经 DOMPurify 清理、注入固定 CSP `meta`，并在 `sandbox=""` iframe 中运行；不要用 demo fixture 代替不可信输出测试。
 - [ ] Vite 工程完成依赖安装、服务器启动和真实客户端交互。
 - [ ] 连续打开两个交互工程时复用单实例，旧服务器和地址被清理。
-- [ ] 快速重复点击不会并发 `boot`、安装或启动服务器。
+- [ ] 快速重复点击不会并发 `boot`、安装或启动服务器；启动/挂载/安装/启动超时和迟到回调行为符合状态机。
 - [ ] 关闭、停止、失败和重试路径没有残留进程或过期预览地址；迟到的回调不会覆盖新工程。
-- [ ] 模型生成的失败重试只重跑目标 provider/model，保留其他结果；停止 WebContainer 不会被误认为取消模型请求。
+- [ ] 模型生成的失败/取消重试只重跑目标 provider/model，保留其他结果；停止 WebContainer 不会被误认为取消模型请求，且传输层重试的重复计费风险已记录。
 
 ### 安全与部署
 
 - [ ] 最终部署 URL 返回正确跨源隔离头。
-- [ ] 已分别验证 Provider 的实际 Base URL/origin 和其对最终应用 origin 的 CORS 结果；默认 origin 记录与部署配置一致。
-- [ ] 静态预览仍使用 DOMPurify、`sandbox=""` 和 `referrerPolicy="no-referrer"`；若部署 CSP，静态与 WebContainer 两条路径均已单独验证。
+- [ ] 已分别验证 Provider 的实际 Base URL/origin 和其对最终应用 origin 的 CORS 结果；默认 origin 记录与部署配置一致，HTTPS/loopback、query、fragment 和凭据限制已检查。
+- [ ] 静态预览仍使用 DOMPurify、固定 CSP `meta`、`sandbox=""` 和 `referrerPolicy="no-referrer"`；若部署 CSP，静态与 WebContainer 两条路径均已单独验证，且未把静态策略直接套到主应用。
 - [ ] 构建产物中没有 provider 服务端密钥；浏览器 `localStorage`、Network 面板和源码中的 BYOK 风险已向部署者说明。
 - [ ] 如配置 `VITE_WEBCONTAINER_API_KEY`，确认它是受限客户端 key，并已配置 origin 和配额。
+- [ ] 如集成层提供 Playwright，已运行 `pnpm exec playwright test --project=chromium` 并覆盖最终 URL、隔离状态、静态 CSP 和 WebContainer 生命周期；否则明确记录该缺口。
 - [ ] 不将 WebContainer 用作生产 API、数据库或密钥保管服务。
 - [ ] 正式商业生产前已根据 [StackBlitz WebContainer Enterprise](https://webcontainers.io/enterprise) 确认并取得所需商业许可。
