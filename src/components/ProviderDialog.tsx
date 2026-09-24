@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import { useTranslation } from 'react-i18next'
 import { useForm, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { toast } from 'sonner'
-import { fetchProviderModels, providerErrorMessage } from '../api'
+import { fetchProviderModels, isAbortError, providerErrorMessage } from '../api'
 import { providerDraftSchema, type ProviderFormValues } from '../validation'
 import { isDefaultProviderBaseUrl } from '../providerUrl'
 import { PROVIDER_KIND_DEFAULTS, PROVIDER_KIND_LABELS, type Provider, type ProviderDraft, type ProviderKind } from '../types'
@@ -14,7 +14,6 @@ interface ProviderDialogProps { open: boolean; onOpenChange: (open: boolean) => 
 interface ModelRequest { id: number; controller: AbortController; providerId?: string }
 const emptyValues: ProviderFormValues = { name: '', kind: 'openai-compatible', apiKey: '', baseUrl: PROVIDER_KIND_DEFAULTS['openai-compatible'].baseUrl, models: '' }
 const formFieldOrder: FieldPath<ProviderFormValues>[] = ['name', 'apiKey', 'baseUrl', 'models', 'kind']
-const isAbortError = (error: unknown) => error instanceof DOMException && error.name === 'AbortError' || error instanceof Error && error.name === 'AbortError'
 
 export function ProviderDialog({ open, onOpenChange, provider = null, onSave, onDelete, returnFocusRef }: ProviderDialogProps) {
   const { t } = useTranslation()

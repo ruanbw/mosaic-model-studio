@@ -11,6 +11,12 @@ export interface GenerationOptions {
   signal?: AbortSignal
 }
 
+export const isAbortError = (error: unknown): boolean => {
+  if (typeof DOMException !== 'undefined' && error instanceof DOMException && error.name === 'AbortError') return true
+  if (!(error instanceof Error)) return false
+  return error.name === 'AbortError' || error.name === 'APIUserAbortError' || /request was aborted|operation was aborted/i.test(error.message)
+}
+
 const MAX_GENERATION_TOKENS = 8_192
 
 const PROJECT_JSON_SCHEMA = {
@@ -290,7 +296,7 @@ export const generateWithProvider = async (
 }
 
 export const providerErrorMessage = (error: unknown): string => {
-  if (error instanceof DOMException && error.name === 'AbortError') return '请求已取消'
+  if (isAbortError(error)) return '请求已取消'
   if (error instanceof Error) {
     const candidate = error as Error & { status?: number }
     return candidate.status ? `请求失败（${candidate.status}）：${candidate.message}` : candidate.message

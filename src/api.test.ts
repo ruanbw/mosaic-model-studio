@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { generateWithProvider, providerErrorMessage } from './api'
+import { generateWithProvider, isAbortError, providerErrorMessage } from './api'
 import type { Provider } from './types'
 
 const provider: Provider = {
@@ -23,9 +23,14 @@ describe('generation cancellation', () => {
     ).rejects.toMatchObject({ name: 'AbortError' })
   })
 
-  it('maps abort errors to the user-facing cancellation message', () => {
-    const error = new DOMException('The operation was aborted.', 'AbortError')
+  it('maps SDK abort errors to the user-facing cancellation message', () => {
+    const domError = new DOMException('The operation was aborted.', 'AbortError')
+    const sdkError = new Error('Request was aborted.')
+    sdkError.name = 'APIUserAbortError'
 
-    expect(providerErrorMessage(error)).toBe('请求已取消')
+    expect(isAbortError(domError)).toBe(true)
+    expect(isAbortError(sdkError)).toBe(true)
+    expect(providerErrorMessage(domError)).toBe('请求已取消')
+    expect(providerErrorMessage(sdkError)).toBe('请求已取消')
   })
 })
