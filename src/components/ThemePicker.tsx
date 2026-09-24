@@ -37,7 +37,7 @@ export function ThemePicker() {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
-        <button className="inline-flex min-h-10 min-w-10 items-center gap-1.5 rounded-md border border-transparent px-2 text-[10px] text-muted transition-colors hover:border-line hover:bg-surface-soft hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint/70 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas max-[580px]:size-10 max-[580px]:justify-center max-[580px]:px-0" type="button" aria-label={`${t('theme.label')}: ${t(currentOption.labelKey)}`} title={`${t('theme.label')}: ${t(currentOption.labelKey)}`}>
+        <button className="inline-flex min-h-11 min-w-11 items-center gap-1.5 rounded-md border border-transparent px-2 text-[10px] text-muted transition-colors hover:border-line hover:bg-surface-soft hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint/70 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas max-[580px]:size-11 max-[580px]:justify-center max-[580px]:px-0" type="button" aria-label={`${t('theme.label')}: ${t(currentOption.labelKey)}`} title={`${t('theme.label')}: ${t(currentOption.labelKey)}`}>
           <CurrentIcon size={16} />
           <span className="max-[580px]:hidden">{t('theme.label')}</span>
         </button>
@@ -49,7 +49,7 @@ export function ThemePicker() {
             {options.map((option) => {
               const Icon = option.icon
               return (
-                <DropdownMenu.RadioItem className="relative flex min-h-10 items-center gap-2 rounded-md px-2 py-2 text-muted outline-none transition-colors hover:bg-surface-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-mint/70 data-[highlighted]:bg-surface-hover data-[highlighted]:text-ink data-[state=checked]:bg-mint/5 data-[state=checked]:text-ink" value={option.value} key={option.value}>
+                <DropdownMenu.RadioItem className="relative flex min-h-11 items-center gap-2 rounded-md px-2 py-2 text-muted outline-none transition-colors hover:bg-surface-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-mint/70 data-[highlighted]:bg-surface-hover data-[highlighted]:text-ink data-[highlighted]:ring-2 data-[highlighted]:ring-inset data-[highlighted]:ring-mint/70 data-[state=checked]:bg-mint/5 data-[state=checked]:text-ink" value={option.value} key={option.value}>
                   <span className="grid size-6 place-items-center rounded-md bg-mint/10 text-mint"><Icon size={15} /></span>
                   <span className="flex flex-1 flex-col gap-0.5"><strong className="text-[11px] font-medium">{t(option.labelKey)}</strong><small className="text-[9px] text-faint">{t(option.descriptionKey)}</small></span>
                   <DropdownMenu.ItemIndicator className="text-mint"><Check size={14} /></DropdownMenu.ItemIndicator>
