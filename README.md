@@ -99,13 +99,13 @@ Provider 的默认地址如下；origin 不包含路径中的 `/v1` 或 `/v1beta
 | 协议 | 默认 Base URL | 默认 origin |
 | --- | --- | --- |
 | OpenAI | `https://api.openai.com/v1` | `https://api.openai.com` |
-| Anthropic | `https://api.anthropic.com/v1` | `https://api.anthropic.com` |
-| Google Gemini | `https://generativelanguage.googleapis.com/v1beta` | `https://generativelanguage.googleapis.com` |
+| Anthropic | `https://api.anthropic.com` | `https://api.anthropic.com` |
+| Google Gemini | `https://generativelanguage.googleapis.com` | `https://generativelanguage.googleapis.com` |
 | OpenAI-compatible（默认 OpenRouter） | `https://openrouter.ai/api/v1` | `https://openrouter.ai` |
 
 ### 取消与重试
 
-生成期间当前界面没有手动取消模型请求的按钮；关闭或停止 WebContainer 只停止工程运行时，不会撤销已经发出的模型请求。失败结果卡上的“重试”会针对同一个 provider/model 发起全新请求，保留其他结果，不续传部分输出，也不会自动重试其他模型。WebContainer 的停止、替换和重新打开按单实例状态机串行清理，详见 [`docs/webcontainer.md`](docs/webcontainer.md)。
+生成期间 Studio 的“停止”按钮会中止当前模型请求，并将尚未完成的结果标记为“已取消”；关闭或停止 WebContainer 只停止工程运行时。失败或取消结果卡上的“重试”会针对同一个 provider/model 发起全新请求，优先复用该结果保存的 prompt 与演示模式输入，保留其他结果，不续传部分输出，也不会自动重试其他模型。WebContainer 的停止、替换和重新打开按单实例状态机串行清理，详见 [`docs/webcontainer.md`](docs/webcontainer.md)。
 
 ## 安全与生产边界
 
@@ -119,7 +119,7 @@ Provider 的默认地址如下；origin 不包含路径中的 `/v1` 或 `/v1beta
 - 生产部署前增加自己的后端代理、认证、限流、额度控制和服务端密钥管理
 - 供应商是否允许浏览器直连取决于其 CORS 策略；如果遇到跨域错误，应使用后端代理，而不是把密钥写进前端代码
 
-模型输出会被视为不可信内容。静态结果虽然经过 DOMPurify 和 `sandbox=""` iframe（并设置 `referrerPolicy="no-referrer"`）隔离，仍不要把它当作可信代码直接部署。当前仓库没有为每个 `srcDoc` 静态预览单独注入 CSP；生产若统一设置 CSP，必须分别验证静态预览和 WebContainer 预览，不能用移除 sandbox 的方式排错。WebContainer 提供浏览器内的 Node.js 兼容运行环境，不代表代码通过了生产安全审计；生成的工程仍可能消耗配额、访问网络或包含有漏洞的依赖。WebContainer 不是生产后端，不要用它承载生产 API、持久数据或保密服务。
+模型输出会被视为不可信内容。归一化后的静态结果会经过 DOMPurify、宿主生成的 CSP、`sandbox=""` iframe 和 `referrerPolicy="no-referrer"` 隔离，仍不要把它当作可信代码直接部署；demo fixture 是可信的本地示例，不等同于不可信模型输出。生产若统一设置 CSP，必须分别验证静态预览和 WebContainer 预览，不能用移除 sandbox 的方式排错。WebContainer 提供浏览器内的 Node.js 兼容运行环境，不代表代码通过了生产安全审计；生成的工程仍可能消耗配额、访问网络或包含有漏洞的依赖。WebContainer 不是生产后端，不要用它承载生产 API、持久数据或保密服务。
 
 ## POC 与商业生产许可
 

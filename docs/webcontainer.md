@@ -43,8 +43,8 @@ Prompt + selected providers
 | Provider 协议 | 默认 Base URL | 默认 origin |
 | --- | --- | --- |
 | OpenAI | `https://api.openai.com/v1` | `https://api.openai.com` |
-| Anthropic | `https://api.anthropic.com/v1` | `https://api.anthropic.com` |
-| Google Gemini | `https://generativelanguage.googleapis.com/v1beta` | `https://generativelanguage.googleapis.com` |
+| Anthropic | `https://api.anthropic.com` | `https://api.anthropic.com` |
+| Google Gemini | `https://generativelanguage.googleapis.com` | `https://generativelanguage.googleapis.com` |
 | OpenAI-compatible（默认 OpenRouter） | `https://openrouter.ai/api/v1` | `https://openrouter.ai` |
 
 Provider 的默认 origin 是请求目的地的 origin，不是应用 origin，也不是供应商的 CORS 白名单。浏览器会从当前页面的 origin（例如 `https://studio.example.com`）直接发起 SDK 请求；该页面 origin 必须被相应服务或自建网关的 CORS 策略允许。OpenRouter 请求还会携带当前页面的 `HTTP-Referer`，但这不替代 CORS 配置。遇到跨域失败时，应改用受控的后端代理，不要把 key 写进代理响应或前端配置。
@@ -96,9 +96,9 @@ stopping ──cleanup──► idle
 
 ### 模型生成
 
-- 当前 Studio 在生成期间显示运行状态，但没有手动取消模型请求的 UI。SDK 调用已经接收 `AbortSignal`；若调用层或浏览器中止请求，结果会按失败处理并显示“请求已取消”。
-- 关闭预览、移除结果或停止 WebContainer **不会**取消已经发出的模型请求。模型请求完成后仍可能更新对应的结果卡。
-- 结果卡上的“重试”只针对失败的那一个 provider/model，启动一次全新的请求；它不会续传部分输出，也不会自动重试其他模型。重试使用编辑器当前的 prompt 和演示模式设置，并保留其他结果卡；生成进行中时重试按钮不可用。
+- Studio 在生成期间显示“停止”按钮；它会调用 `AbortController.abort()`，将尚未完成的结果标记为“已取消”，并阻止迟到响应覆盖结果卡。
+- 关闭预览、移除结果或停止 WebContainer **不会**取消已经发出的模型请求；模型生成与工程运行时是两条独立生命周期。
+- 失败或取消结果卡上的“重试”只针对对应的 provider/model，启动一次全新的请求；它优先使用结果保存的 prompt 与演示模式输入，不续传部分输出，也不会自动重试其他模型。
 
 ### WebContainer
 
@@ -110,7 +110,7 @@ stopping ──cleanup──► idle
 
 静态结果和交互工程使用不同的安全边界。静态结果先经过 DOMPurify，再放入 `sandbox=""` iframe，并设置 `referrerPolicy="no-referrer"`；空的 sandbox 不授予脚本、同源访问、表单、弹窗或顶层导航权限。这些措施是当前代码提供的隔离，不应被描述成完整的浏览器安全审计。
 
-当前仓库没有为每个 `srcDoc` 静态预览单独注入 CSP `meta` 或响应头。若部署平台统一设置 CSP，必须在最终 URL 同时验证静态预览和 WebContainer 预览；不要为了修复静态页面而移除 sandbox，也不要把只适用于静态产物的策略未经测试地复制到主应用。
+归一化后的静态结果会由宿主生成固定的 CSP `meta`，并继续使用 `sandbox=""` 与 `referrerPolicy="no-referrer"`；demo fixture 是可信本地示例，不等同于不可信模型输出。若部署平台统一设置 CSP，仍必须在最终 URL 同时验证静态预览和 WebContainer 预览；不要为了修复静态页面而移除 sandbox，也不要把只适用于静态产物的策略未经测试地复制到主应用。
 
 如果将静态 HTML 独立部署而不是通过当前的 `srcDoc` 预览，可以把下面的策略作为收紧资源访问的起点，再按实际图片、字体和样式来源调整：
 
