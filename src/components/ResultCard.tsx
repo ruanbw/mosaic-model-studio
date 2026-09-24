@@ -119,6 +119,7 @@ export function ResultCard({ result, onExpand, onRetry, onRemove, busy }: Result
             <span className="grid size-9 place-items-center rounded-full border border-line bg-surface-soft text-muted">×</span>
             <strong className="mt-4 text-xs font-medium text-ink">{t('results.cancelled')}</strong>
             <small className="mt-1 font-mono text-[10px] text-muted">{t('results.cancelledCopy')}</small>
+            {onRetry && <button className="mt-4 inline-flex min-h-10 items-center gap-1.5 rounded-md border border-line bg-surface-soft px-3 text-[10px] font-semibold text-ink transition-colors hover:bg-surface-hover" type="button" onClick={() => onRetry(result)} disabled={busy}><RotateCcw size={14} />{t('results.retry')}</button>}
           </div>
         )}
         {result.status === 'error' && (
