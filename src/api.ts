@@ -11,6 +11,8 @@ export interface GenerationOptions {
   signal?: AbortSignal
 }
 
+const MAX_GENERATION_TOKENS = 8_192
+
 const PROJECT_JSON_SCHEMA = {
   type: 'object' as const,
   additionalProperties: false as const,
@@ -157,7 +159,7 @@ const generateWithOpenAICompatible = async (
     messages,
     ...(provider.kind === 'openai'
       ? {
-          max_completion_tokens: 16_384,
+          max_completion_tokens: MAX_GENERATION_TOKENS,
           response_format: {
             type: 'json_schema' as const,
             json_schema: {
@@ -168,7 +170,7 @@ const generateWithOpenAICompatible = async (
           },
         }
       : {
-          max_tokens: 16_384,
+          max_tokens: MAX_GENERATION_TOKENS,
           response_format: { type: 'json_object' as const },
         }),
   }
@@ -181,7 +183,7 @@ const generateWithOpenAICompatible = async (
     // Older OpenAI-compatible gateways may not implement JSON mode. In that case,
     // request plain text and rely on the host's fenced-JSON normalizer.
     response = await client.chat.completions.create(
-      { model, messages, max_tokens: 16_384 },
+      { model, messages, max_tokens: MAX_GENERATION_TOKENS },
       { signal: options.signal },
     )
   }
@@ -202,7 +204,7 @@ const generateWithAnthropic = async (
   const client = await createAnthropicClient(provider)
   const baseRequest = {
     model,
-    max_tokens: 16_384,
+    max_tokens: MAX_GENERATION_TOKENS,
     system: PROJECT_GENERATION_SYSTEM_PROMPT,
     messages: [{ role: 'user' as const, content: prompt }],
   }
@@ -250,7 +252,7 @@ const generateWithGemini = async (
       systemInstruction: PROJECT_GENERATION_SYSTEM_PROMPT,
       responseMimeType: 'application/json',
       responseJsonSchema: PROJECT_JSON_SCHEMA,
-      maxOutputTokens: 16_384,
+      maxOutputTokens: MAX_GENERATION_TOKENS,
       abortSignal: options.signal,
     },
   })
