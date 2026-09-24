@@ -11,11 +11,24 @@ export interface GenerationOptions {
   signal?: AbortSignal
 }
 
-export const isAbortError = (error: unknown): boolean => {
-  if (typeof DOMException !== 'undefined' && error instanceof DOMException && error.name === 'AbortError') return true
-  if (!(error instanceof Error)) return false
-  return error.name === 'AbortError' || error.name === 'APIUserAbortError' || /request was aborted|operation was aborted/i.test(error.message)
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null
+
+const isAbortErrorValue = (error: unknown, seen: Set<unknown>): boolean => {
+  if (!isRecord(error) || seen.has(error)) return false
+  seen.add(error)
+
+  const name = typeof error.name === 'string' ? error.name : ''
+  const message = typeof error.message === 'string' ? error.message : ''
+  const code = error.code
+  if (name === 'AbortError' || name === 'APIUserAbortError' || name === 'RequestAbortedError') return true
+  if (code === 20 || (typeof code === 'string' && code.toLowerCase() === 'econnaborted')) return true
+  if (/(?:request|operation)(?:\s+was)?\s+aborted/i.test(message)) return true
+
+  return isRecord(error.cause) && isAbortErrorValue(error.cause, seen)
 }
+
+export const isAbortError = (error: unknown): boolean => isAbortErrorValue(error, new Set())
 
 const MAX_GENERATION_TOKENS = 8_192
 
@@ -133,13 +146,20 @@ export const fetchProviderModels = async (
   return uniqueModels
 }
 
+const generationError = (kind: 'token_limit' | 'refusal' | 'content_filter' | 'incomplete', detail?: string): Error => {
+  if (kind === 'token_limit') return new Error('模型输出达到 token 上限，项目 JSON 不完整')
+  if (kind === 'refusal') return new Error(detail ? `模型拒绝了本次生成：${detail}` : '模型拒绝了本次生成')
+  if (kind === 'content_filter') return new Error('模型因安全策略拒绝了本次生成')
+  return new Error(detail ? `模型未完成项目生成（${detail}）` : '模型未完成项目生成')
+}
+
 type OpenAIChoice = NonNullable<OpenAI.Chat.Completions.ChatCompletion['choices']>[number]
 
 const assertOpenAICompletion = (choice: OpenAIChoice | undefined) => {
   if (!choice) throw new Error('模型没有返回候选结果')
-  if (choice.finish_reason === 'length') throw new Error('模型输出达到 token 上限，项目 JSON 不完整')
-  if (choice.finish_reason === 'content_filter') throw new Error('模型因安全策略拒绝了本次生成')
-  if (choice.message.refusal?.trim()) throw new Error(`模型拒绝了本次生成：${choice.message.refusal.trim()}`)
+  if (choice.finish_reason === 'length') throw generationError('token_limit')
+  if (choice.finish_reason === 'content_filter') throw generationError('content_filter')
+  if (choice.message.refusal?.trim()) throw generationError('refusal', choice.message.refusal.trim())
 }
 
 const isResponseFormatUnsupported = (error: unknown) => {
@@ -232,8 +252,8 @@ const generateWithAnthropic = async (
     if (!isResponseFormatUnsupported(error)) throw error
     response = await client.messages.create(baseRequest, { signal: options.signal })
   }
-  if (response.stop_reason === 'max_tokens') throw new Error('模型输出达到 token 上限，项目 JSON 不完整')
-  if (response.stop_reason === 'refusal') throw new Error('模型拒绝了本次生成')
+  if (response.stop_reason === 'max_tokens') throw generationError('token_limit')
+  if (response.stop_reason === 'refusal') throw generationError('refusal')
 
   const raw = response.content
     .filter((block) => block.type === 'text')
@@ -267,9 +287,9 @@ const generateWithGemini = async (
     throw new Error(`模型因安全策略拒绝了本次生成（${response.promptFeedback.blockReason}）`)
   }
   const finishReason = response.candidates?.[0]?.finishReason
-  if (finishReason === 'MAX_TOKENS') throw new Error('模型输出达到 token 上限，项目 JSON 不完整')
+  if (finishReason === 'MAX_TOKENS') throw generationError('token_limit')
   if (finishReason && !['STOP', 'FINISH_REASON_UNSPECIFIED'].includes(finishReason)) {
-    throw new Error(`模型未完成项目生成（${finishReason}）`)
+    throw generationError('incomplete', finishReason)
   }
 
   const raw = response.text ?? ''
