@@ -4,6 +4,8 @@
 
 Mosaic 是一个浏览器内的多模型工作台：使用同一段提示词选择多个模型，并行生成、比较和预览结果。
 
+**在线演示 / Live demo:** https://mosaic-model-studio-ruanbws-projects.vercel.app
+
 - **静态页面**：经过 DOMPurify 清理，并在受限 iframe 中预览。
 - **Vite 交互工程**：通过单个 WebContainer 在浏览器中安装依赖并运行。
 
@@ -168,6 +170,8 @@ vercel.json               # Vercel 构建及响应头
 ## English
 
 Mosaic is a browser-based multi-model workspace. It sends one prompt to several models in parallel, then helps you compare, preview, retry, and export their results.
+
+**Live demo:** https://mosaic-model-studio-ruanbws-projects.vercel.app
 
 - **Static pages** are sanitized with DOMPurify and rendered inside a restricted iframe.
 - **Vite projects** run through one shared WebContainer in the browser.
