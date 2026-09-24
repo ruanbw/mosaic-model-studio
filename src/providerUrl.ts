@@ -39,7 +39,7 @@ export const isAllowedProviderBaseUrl = (value: string | undefined): boolean => 
     const url = new URL(normalized)
     const loopback = /^(localhost|127(?:\.\d{1,3}){3}|\[::1\])$/i.test(url.hostname)
     const secureProtocol = url.protocol === 'https:' || (url.protocol === 'http:' && loopback)
-    return secureProtocol && !url.username && !url.password && !url.hash
+    return secureProtocol && !url.username && !url.password && !url.hash && !url.search
   } catch {
     return false
   }

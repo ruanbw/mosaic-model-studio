@@ -19,6 +19,7 @@ describe('provider URL normalization', () => {
   it('rejects credentials, fragments, remote HTTP, and malformed URLs', () => {
     expect(isAllowedProviderBaseUrl('https://user:pass@example.test')).toBe(false)
     expect(isAllowedProviderBaseUrl('https://example.test#fragment')).toBe(false)
+    expect(isAllowedProviderBaseUrl('https://example.test/api?tenant=x')).toBe(false)
     expect(isAllowedProviderBaseUrl('http://evil.example.test')).toBe(false)
     expect(isAllowedProviderBaseUrl('not a url')).toBe(false)
     expect(isAllowedProviderBaseUrl('http://localhost:4173')).toBe(true)
