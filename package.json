@@ -9,7 +9,10 @@
   },
   "scripts": {
     "dev": "vite",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "typecheck": "tsc -b",
+    "typecheck:test": "tsc -p tsconfig.app.json --noEmit",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
@@ -45,6 +48,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.7.3",
-    "vite": "^6.0.5"
+    "vite": "^6.0.5",
+    "vitest": "^4.1.11"
   }
 }
