@@ -14,6 +14,7 @@ import {
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import type { GenerationResult } from '../types'
+import { LazyPreviewFrame } from './LazyPreviewFrame'
 
 interface ResultCardProps {
   result: GenerationResult
@@ -103,7 +104,7 @@ export function ResultCard({ result, onExpand, onRetry, onRemove, busy }: Result
           </div>
         )}
         {result.status === 'success' && !isWebProject && result.html && (
-          <iframe className="block size-full border-0 bg-white" title={`${result.model} — ${t('results.previewTitle')}`} srcDoc={result.html} sandbox="" referrerPolicy="no-referrer" />
+          <LazyPreviewFrame srcDoc={result.html} title={`${result.model} — ${t('results.previewTitle')}`} />
         )}
         {result.status === 'success' && !canPreview && <div className="grid size-full place-items-center px-6 text-center text-[#777f86]">{t('results.empty')}</div>}
         {result.status === 'running' && (
