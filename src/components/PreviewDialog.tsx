@@ -7,12 +7,13 @@ import {
   FileCode2,
   FolderCode,
   LoaderCircle,
+  RotateCcw,
   Terminal,
   TriangleAlert,
   X,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import type { MutableRefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useWebContainer } from '../hooks/useWebContainer'
@@ -43,7 +44,8 @@ export function PreviewDialog({ result, open, onOpenChange, returnFocusRef }: Pr
   const project = result?.project
   const webProject = project?.kind === 'web' ? project : undefined
   const isWebProject = Boolean(webProject)
-  const state = useWebContainer(open && isWebProject, webProject, result?.id)
+  const activeWebProject = open && isWebProject
+  const { state, retry } = useWebContainer(activeWebProject, webProject, result?.id)
 
   useEffect(() => {
     if (open && isWebProject) return
@@ -58,11 +60,13 @@ export function PreviewDialog({ result, open, onOpenChange, returnFocusRef }: Pr
   const canStop = Boolean(
     isWebProject && state.projectId === result?.id && state.phase !== 'idle' && state.phase !== 'unsupported',
   )
-  const visibleLogs = state.logs
-    .slice(-80)
-    .map((line: string) => line.length > 500 ? `${line.slice(0, 500)}…` : line)
-    .join('\n')
-  const logText = state.logs.join('\n')
+  const { visibleLogs, logText } = useMemo(() => ({
+    visibleLogs: state.logs
+      .slice(-80)
+      .map((line: string) => line.length > 500 ? `${line.slice(0, 500)}…` : line)
+      .join('\n'),
+    logText: state.logs.join('\n'),
+  }), [state.logs])
   const statusDescription = state.phase === 'unsupported'
     ? t('results.web.unsupportedDescription')
     : state.error ?? t(state.phase === 'error' ? 'results.web.errorDescription' : state.phase === 'idle' ? 'results.empty' : isWebProject ? 'results.web.waitingDescription' : 'results.empty')
@@ -147,6 +151,12 @@ export function PreviewDialog({ result, open, onOpenChange, returnFocusRef }: Pr
                     <strong className="mt-4 break-words text-xs font-medium text-ink [overflow-wrap:anywhere]">{phaseLabel}</strong>
                     <p className="mt-2 max-w-[520px] break-words text-[11px] leading-[1.55] text-muted [overflow-wrap:anywhere]">{statusDescription}</p>
                     {state.phase === 'ready' && !state.previewUrl && <p className="mt-2 text-[10px] text-faint">{t('results.web.previewUnavailable')}</p>}
+                    {(state.phase === 'error' || state.phase === 'unsupported') && !isSwitching && (
+                      <button className="mt-4 inline-flex min-h-10 items-center gap-1.5 rounded-md border border-line bg-surface-soft px-3 text-[10px] font-semibold text-ink transition-colors hover:bg-surface-hover" type="button" onClick={retry}>
+                        <RotateCcw size={14} />
+                        {t('results.retry')}
+                      </button>
+                    )}
                   </div>
                 )}
 

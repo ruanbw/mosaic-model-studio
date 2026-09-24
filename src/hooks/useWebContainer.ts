@@ -1,21 +1,34 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import type { GeneratedProject } from '../project/types'
 import { webContainerManager, type WebContainerState } from '../webcontainer'
 
-const subscribe = (listener: () => void) => webContainerManager.subscribe(listener)
 const getSnapshot = () => webContainerManager.getState()
+
+export interface WebContainerController {
+  state: WebContainerState
+  retry: () => void
+}
 
 export function useWebContainer(
   active: boolean,
   project: GeneratedProject | undefined,
   projectId: string | undefined,
-): WebContainerState {
+): WebContainerController {
+  const subscribe = useCallback(
+    (listener: () => void) => active ? webContainerManager.subscribe(listener) : () => undefined,
+    [active],
+  )
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+
+  const retry = useCallback(() => {
+    if (!active || !project || !projectId) return
+    void webContainerManager.activate(project, projectId).catch(() => undefined)
+  }, [active, project, projectId])
 
   useEffect(() => {
     if (!active || !project || !projectId) return
     void webContainerManager.activate(project, projectId).catch(() => undefined)
   }, [active, project, projectId])
 
-  return state
+  return { state, retry }
 }
