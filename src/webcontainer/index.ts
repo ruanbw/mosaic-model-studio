@@ -1,5 +1,6 @@
 import type { FileSystemTree, WebContainer, WebContainerProcess } from '@webcontainer/api'
-import { createProjectRuntimeFiles, type GeneratedProject } from '../project/normalize'
+import { createProjectExportFiles } from '../project/export'
+import type { GeneratedProject } from '../project/normalize'
 import type { WebContainerState } from './types'
 
 export type { WebContainerPhase, WebContainerState } from './types'
@@ -235,7 +236,7 @@ export class WebContainerManager {
         this.publishIfCurrent(activationEpoch, { phase: 'mounting', projectId, logs: [] })
         await this.stopCurrentProcess()
         if (!this.isCurrent(activationEpoch)) throw new StaleActivationError()
-        const runtimeFiles = createProjectRuntimeFiles(project)
+        const runtimeFiles = createProjectExportFiles(project)
         await this.replaceProjectFiles(container, toFileSystemTree(runtimeFiles), activationEpoch)
         if (!this.isCurrent(activationEpoch)) throw new StaleActivationError()
 
