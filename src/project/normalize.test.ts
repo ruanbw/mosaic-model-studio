@@ -81,6 +81,7 @@ describe('createProjectRuntimeFiles', () => {
       files: [
         ...webFiles,
         { path: 'vite.config.ts', content: 'throw new Error("model config must not win")' },
+        { path: 'package.json', content: '{"name":"model-must-not-win"}' },
       ],
     }
 

@@ -246,7 +246,7 @@ const normalizePath = (value: unknown, options: { allowHostScaffold?: boolean } 
   if (basename === '.env' || basename.startsWith('.env.')) {
     throw new Error(`项目文件不能包含环境变量：${errorInput(value)}`)
   }
-  if (FORBIDDEN_BASENAMES.has(basename)) {
+  if (FORBIDDEN_BASENAMES.has(basename) && !(options.allowHostScaffold && HOST_SCAFFOLD_PATHS.has(normalized.toLowerCase()))) {
     throw new Error(`项目文件不能包含 lockfile 或包配置：${errorInput(value)}`)
   }
   if (isForbiddenBuildPath(normalized) && !(options.allowHostScaffold && HOST_SCAFFOLD_PATHS.has(normalized.toLowerCase()))) {
