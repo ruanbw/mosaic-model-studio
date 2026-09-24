@@ -140,9 +140,10 @@ function App() {
     if (providerDialogOpen || !providerDialogReturnFocusRef.current) return
     const opener = providerDialogReturnFocusRef.current
     providerDialogReturnFocusRef.current = null
-    window.requestAnimationFrame(() => {
+    const focusTimer = window.setTimeout(() => {
       if (opener.isConnected && !opener.hasAttribute('disabled')) opener.focus()
-    })
+    }, 0)
+    return () => window.clearTimeout(focusTimer)
   }, [providerDialogOpen])
 
   const generationMutation = useMutation<GenerationResult[], Error, GenerationPayload>({
