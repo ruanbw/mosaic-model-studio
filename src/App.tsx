@@ -56,6 +56,7 @@ function App() {
   const [providerDialogOpen, setProviderDialogOpen] = useState(false)
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const providerDialogReturnFocusRef = useRef<HTMLElement | null>(null)
+  const lastFocusedElementRef = useRef<HTMLElement | null>(null)
   const [previewResult, setPreviewResult] = useState<GenerationResult | null>(null)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -110,9 +111,18 @@ function App() {
     }
   }, [cancelActiveGeneration])
   useEffect(() => { if (!demoMode || initialDemoSeeded.current || results.length > 0 || modelOptions.length === 0) return; initialDemoSeeded.current = true; replaceResults(createInitialDemoResults(selectedModels.length > 0 ? selectedModels : modelOptions)) }, [demoMode, modelOptions, replaceResults, results.length, selectedModels])
+  useEffect(() => {
+    const rememberFocus = (event: FocusEvent) => {
+      if (event.target instanceof HTMLElement && !event.target.closest('[role="dialog"]')) lastFocusedElementRef.current = event.target
+    }
+    document.addEventListener('focusin', rememberFocus)
+    return () => document.removeEventListener('focusin', rememberFocus)
+  }, [])
   const captureProviderDialogOpener = useCallback(() => {
     const activeElement = document.activeElement
-    providerDialogReturnFocusRef.current = activeElement instanceof HTMLElement && activeElement !== document.body ? activeElement : null
+    providerDialogReturnFocusRef.current = activeElement instanceof HTMLElement && activeElement !== document.body
+      ? activeElement
+      : lastFocusedElementRef.current
   }, [])
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
