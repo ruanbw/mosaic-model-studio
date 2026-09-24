@@ -1,6 +1,10 @@
 import { nanoid } from 'nanoid'
 import { create } from 'zustand'
-import { createJSONStorage, persist } from 'zustand/middleware'
+import {
+  createJSONStorage,
+  persist,
+  type PersistStorage,
+} from 'zustand/middleware'
 import { isAllowedProviderBaseUrl, normalizeProviderBaseUrl } from './providerUrl'
 import {
   DEFAULT_PROMPT,
@@ -14,7 +18,7 @@ import {
   type ThemeMode,
 } from './types'
 
-interface AppState {
+export interface AppState {
   providers: Provider[]
   selectedModelKeys: string[]
   prompt: string
@@ -55,6 +59,47 @@ const parseModels = (models: string) =>
 const accentPalette = ['#8ef0c4', '#f3b98b', '#a7b8ff', '#d5a6ff', '#f0a6ca', '#91d7ef']
 
 const PERSIST_VERSION = 1
+
+// Zustand persist runs its storage writer for every store update, including
+// result-only updates. Keep the last settings snapshot so runtime transitions
+// do not serialize the same configuration again.
+const persistedSettingsCache: { state: PersistedSettings; version: number } = {
+  state: initialSettings,
+  version: PERSIST_VERSION,
+}
+
+const areSettingsEqual = (left: PersistedSettings, right: PersistedSettings) =>
+  left.providers === right.providers &&
+  left.selectedModelKeys === right.selectedModelKeys &&
+  left.prompt === right.prompt &&
+  left.demoMode === right.demoMode &&
+  left.theme === right.theme
+
+const createSettingsStorage = (): PersistStorage<PersistedSettings> | undefined => {
+  const jsonStorage = createJSONStorage<PersistedSettings>(() => localStorage)
+  if (!jsonStorage) return undefined
+
+  return {
+    getItem: (name) => jsonStorage.getItem(name),
+    setItem: (name, value) => {
+      const version = value.version ?? PERSIST_VERSION
+      if (
+        persistedSettingsCache.version === version &&
+        areSettingsEqual(persistedSettingsCache.state, value.state)
+      ) return
+
+      // Update the cache before the synchronous localStorage write. This keeps
+      // back-to-back runtime updates from racing into duplicate JSON writes.
+      persistedSettingsCache.state = value.state
+      persistedSettingsCache.version = version
+      return jsonStorage.setItem(name, value)
+    },
+    // Keep the current settings as the comparison baseline after clearing;
+    // clearing storage must not make a later result-only update repopulate it.
+    removeItem: (name) => jsonStorage.removeItem(name),
+  }
+}
+
 const providerKinds = new Set<string>(['openai', 'anthropic', 'gemini', 'openai-compatible'])
 const themeModes = new Set<string>(['dark', 'light', 'system'])
 
@@ -155,6 +200,14 @@ const sanitizePersistedSettings = (
   }
 }
 
+const toPersistedSettings = (state: AppState): PersistedSettings => ({
+  providers: state.providers,
+  selectedModelKeys: state.selectedModelKeys,
+  prompt: state.prompt,
+  demoMode: state.demoMode,
+  theme: state.theme,
+})
+
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
@@ -226,16 +279,17 @@ export const useAppStore = create<AppState>()(
     {
       name: 'mosaic-model-studio',
       version: PERSIST_VERSION,
-      storage: createJSONStorage(() => localStorage),
+      storage: createSettingsStorage(),
       // Keep the persisted boundary explicit. Results and isRunning are
       // runtime-only, while provider apiKey values intentionally remain for BYOK.
-      partialize: (state): PersistedSettings => ({
-        providers: state.providers,
-        selectedModelKeys: state.selectedModelKeys,
-        prompt: state.prompt,
-        demoMode: state.demoMode,
-        theme: state.theme,
-      }),
+      partialize: toPersistedSettings,
+      // Align the write cache with the sanitized state after hydration.
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          persistedSettingsCache.state = toPersistedSettings(state)
+          persistedSettingsCache.version = PERSIST_VERSION
+        }
+      },
       migrate: (persisted) => sanitizePersistedSettings(persisted, initialSettings),
       merge: (persisted, current) => ({
         ...current,
