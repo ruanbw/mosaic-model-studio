@@ -352,7 +352,7 @@ function App() {
               </div>
               <ModelPicker
                 models={modelOptions}
-                selectedKeys={selectedModelKeys}
+                selectedKeys={selectedModels.map((model) => model.key)}
                 onToggle={toggleModel}
                 onClear={clearModelSelection}
                 onManage={() => handleViewChange('providers')}
