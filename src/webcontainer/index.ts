@@ -393,9 +393,10 @@ export class WebContainerManager {
     const promise = Promise.resolve().then(async () => {
       if (previousAttempt) {
         try {
-          await previousAttempt.promise
-        } catch {
-          // The previous attempt has already failed; it is safe to continue with a fresh boot.
+          await withTimeout(previousAttempt.promise, BOOT_TIMEOUT_MS, new BootTimeoutError())
+        } catch (error) {
+          if (error instanceof BootTimeoutError) previousAttempt.abandoned = true
+          // A failed or abandoned previous attempt must not block a fresh boot forever.
         }
       }
       if (this.disposed || attempt.abandoned || !this.isCurrent(epoch)) throw new StaleActivationError()
