@@ -1,6 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
-import { GoogleGenAI } from '@google/genai'
-import OpenAI from 'openai'
+import type OpenAI from 'openai'
 import { normalizeGeneratedProject } from './project/normalize'
 import type { GenerationOutput } from './project/types'
 import { PROJECT_GENERATION_SYSTEM_PROMPT } from './prompts'
@@ -37,7 +35,19 @@ const PROJECT_JSON_SCHEMA = {
   required: ['schemaVersion', 'title', 'summary', 'files'],
 }
 
-const getBaseUrl = (provider: Provider) => provider.baseUrl?.trim() || undefined
+const getBaseUrl = (provider: Provider) => {
+  const baseUrl = provider.baseUrl?.trim()
+  if (!baseUrl) return undefined
+
+  const normalized = baseUrl.replace(/\/+$/, '')
+  if (provider.kind === 'anthropic' && normalized.endsWith('/v1')) {
+    return normalized.slice(0, -'/v1'.length)
+  }
+  if (provider.kind === 'gemini' && normalized.endsWith('/v1beta')) {
+    return normalized.slice(0, -'/v1beta'.length)
+  }
+  return normalized
+}
 
 const assertApiKey = (provider: Provider) => {
   if (!provider.apiKey.trim()) throw new Error(`${provider.name} 尚未配置 API Key`)
@@ -48,11 +58,13 @@ const assertGenerationConfigured = (provider: Provider) => {
   if (provider.models.length === 0) throw new Error(`${provider.name} 尚未添加模型`)
 }
 
-const createOpenAIClient = (provider: Provider) => {
-  const isOpenRouter = provider.kind === 'openai-compatible' && provider.baseUrl?.includes('openrouter.ai')
+const createOpenAIClient = async (provider: Provider) => {
+  const { default: OpenAI } = await import('openai')
+  const baseUrl = getBaseUrl(provider)
+  const isOpenRouter = provider.kind === 'openai-compatible' && baseUrl?.includes('openrouter.ai')
   return new OpenAI({
     apiKey: provider.apiKey,
-    baseURL: getBaseUrl(provider),
+    baseURL: baseUrl,
     dangerouslyAllowBrowser: true,
     maxRetries: 1,
     timeout: 120_000,
@@ -65,23 +77,27 @@ const createOpenAIClient = (provider: Provider) => {
   })
 }
 
-const createAnthropicClient = (provider: Provider) =>
-  new Anthropic({
+const createAnthropicClient = async (provider: Provider) => {
+  const { default: Anthropic } = await import('@anthropic-ai/sdk')
+  return new Anthropic({
     apiKey: provider.apiKey,
     baseURL: getBaseUrl(provider),
     dangerouslyAllowBrowser: true,
     maxRetries: 1,
     timeout: 120_000,
   })
+}
 
-const createGeminiClient = (provider: Provider) =>
-  new GoogleGenAI({
+const createGeminiClient = async (provider: Provider) => {
+  const { GoogleGenAI } = await import('@google/genai')
+  return new GoogleGenAI({
     apiKey: provider.apiKey,
     httpOptions: {
       baseUrl: getBaseUrl(provider),
       timeout: 120_000,
     },
   })
+}
 
 export const fetchProviderModels = async (
   provider: Provider,
@@ -91,7 +107,7 @@ export const fetchProviderModels = async (
   const modelIds: string[] = []
 
   if (provider.kind === 'gemini') {
-    const client = createGeminiClient(provider)
+    const client = await createGeminiClient(provider)
     const pager = await client.models.list({
       config: { pageSize: 200, abortSignal: options.signal },
     })
@@ -99,11 +115,11 @@ export const fetchProviderModels = async (
       if (model.name) modelIds.push(model.name.replace(/^models\//, ''))
     }
   } else if (provider.kind === 'anthropic') {
-    const client = createAnthropicClient(provider)
+    const client = await createAnthropicClient(provider)
     const page = await client.models.list({ limit: 200 }, { signal: options.signal })
     for await (const model of page) modelIds.push(model.id)
   } else {
-    const client = createOpenAIClient(provider)
+    const client = await createOpenAIClient(provider)
     const page = await client.models.list({ signal: options.signal })
     for await (const model of page) modelIds.push(model.id)
   }
@@ -135,7 +151,7 @@ const generateWithOpenAICompatible = async (
   prompt: string,
   options: GenerationOptions,
 ): Promise<GenerationOutput> => {
-  const client = createOpenAIClient(provider)
+  const client = await createOpenAIClient(provider)
   const messages = [
     { role: 'system' as const, content: PROJECT_GENERATION_SYSTEM_PROMPT },
     { role: 'user' as const, content: prompt },
@@ -145,6 +161,7 @@ const generateWithOpenAICompatible = async (
     messages,
     ...(provider.kind === 'openai'
       ? {
+          max_completion_tokens: 16_384,
           response_format: {
             type: 'json_schema' as const,
             json_schema: {
@@ -154,7 +171,10 @@ const generateWithOpenAICompatible = async (
             },
           },
         }
-      : { response_format: { type: 'json_object' as const } }),
+      : {
+          max_tokens: 16_384,
+          response_format: { type: 'json_object' as const },
+        }),
   }
 
   let response
@@ -165,7 +185,7 @@ const generateWithOpenAICompatible = async (
     // Older OpenAI-compatible gateways may not implement JSON mode. In that case,
     // request plain text and rely on the host's fenced-JSON normalizer.
     response = await client.chat.completions.create(
-      { model, messages },
+      { model, messages, max_tokens: 16_384 },
       { signal: options.signal },
     )
   }
@@ -183,7 +203,7 @@ const generateWithAnthropic = async (
   prompt: string,
   options: GenerationOptions,
 ): Promise<GenerationOutput> => {
-  const client = createAnthropicClient(provider)
+  const client = await createAnthropicClient(provider)
   const baseRequest = {
     model,
     max_tokens: 16_384,
@@ -226,7 +246,7 @@ const generateWithGemini = async (
   options: GenerationOptions,
 ): Promise<GenerationOutput> => {
   options.signal?.throwIfAborted()
-  const client = createGeminiClient(provider)
+  const client = await createGeminiClient(provider)
   const response = await client.models.generateContent({
     model,
     contents: prompt,
