@@ -118,11 +118,12 @@ function App() {
     document.addEventListener('focusin', rememberFocus)
     return () => document.removeEventListener('focusin', rememberFocus)
   }, [])
-  const captureProviderDialogOpener = useCallback(() => {
+  const captureProviderDialogOpener = useCallback((): HTMLElement | null => {
     const activeElement = document.activeElement
     providerDialogReturnFocusRef.current = activeElement instanceof HTMLElement && activeElement !== document.body
       ? activeElement
       : lastFocusedElementRef.current
+    return providerDialogReturnFocusRef.current
   }, [])
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -288,8 +289,8 @@ function App() {
     if (!model) { toast.error(t('models.removed')); return }
     if (startGeneration([model], result.inputPrompt ?? prompt, result.inputDemoMode ?? demoMode, true)) handleRemoveResult(result.id)
   }
-  const openAddProvider = () => { captureProviderDialogOpener(); setEditingProvider(null); setProviderDialogOpen(true); setMobileSidebarOpen(false) }
-  const openEditProvider = (provider: Provider) => { captureProviderDialogOpener(); setEditingProvider(provider); setProviderDialogOpen(true) }
+  const openAddProvider = (opener?: HTMLElement) => { providerDialogReturnFocusRef.current = opener ?? captureProviderDialogOpener(); setEditingProvider(null); setProviderDialogOpen(true); setMobileSidebarOpen(false) }
+  const openEditProvider = (provider: Provider, opener?: HTMLElement) => { providerDialogReturnFocusRef.current = opener ?? captureProviderDialogOpener(); setEditingProvider(provider); setProviderDialogOpen(true) }
   const handleSaveProvider = (draft: ProviderDraft, providerId?: string) => { const normalized: ProviderDraft = { ...draft, baseUrl: draft.baseUrl.trim(), models: parseModelIds(draft.models).join('\n') }; if (providerId) updateProvider(providerId, { name: normalized.name.trim(), kind: normalized.kind, apiKey: normalized.apiKey.trim(), baseUrl: normalized.baseUrl || undefined, models: parseModelIds(normalized.models) }); else addProvider(normalized) }
   const handleDeleteProvider = (provider: Provider) => { if (!window.confirm(t('providers.deleteConfirm', { name: provider.name }))) return; removeProvider(provider.id); if (editingProvider?.id === provider.id) setProviderDialogOpen(false); toast.success(t('providers.deleted')) }
   const handleRestore = () => { if (!window.confirm(t('settings.restoreConfirm'))) return; cancelActiveGeneration(false); stopActiveProject(); restoreDefaults(); clearResults(); setPreviewResult(null); toast.success(t('settings.restored')) }
