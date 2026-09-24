@@ -143,7 +143,7 @@ function App() {
     providerDialogReturnFocusRef.current = null
     const focusTimer = window.setTimeout(() => {
       if (opener.isConnected && !opener.hasAttribute('disabled')) opener.focus()
-    }, 0)
+    }, 100)
     return () => window.clearTimeout(focusTimer)
   }, [providerDialogOpen])
 
