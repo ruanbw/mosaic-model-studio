@@ -22,6 +22,7 @@ export interface ModelOption {
   model: string
   accent: string
   kind: ProviderKind
+  configured: boolean
 }
 
 export interface GenerationResult {
