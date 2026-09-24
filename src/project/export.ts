@@ -11,3 +11,15 @@ export type ProjectExportFiles = Record<string, string>
 export function createProjectExportFiles(project: GeneratedProject): ProjectExportFiles {
   return createProjectRuntimeFiles(project)
 }
+
+export function downloadProjectBundle(project: GeneratedProject): void {
+  const files = createProjectExportFiles(project)
+  const bundle = JSON.stringify({ schemaVersion: 1, files }, null, 2)
+  const blob = new Blob([bundle], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `${project.title.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-|-$/g, '') || 'generated-project'}.json`
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
