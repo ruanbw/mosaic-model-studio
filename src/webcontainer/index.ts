@@ -17,6 +17,7 @@ const LOG_FLUSH_INTERVAL_MS = 100
 const LOG_BATCH_SIZE = 20
 const MAX_LOG_ENTRIES = 200
 const MAX_LOG_LENGTH = 2_000
+const MAX_PENDING_LOG_LENGTH = 2_000
 
 type ProcessPhase = 'install' | 'dev'
 
@@ -534,10 +535,21 @@ export class WebContainerManager {
     let pending = ''
 
     const addLines = (text: string) => {
-      pending += text
-      const lines = pending.split(/\r\n|\n|\r/)
-      pending = lines.pop() ?? ''
-      for (const line of lines) this.appendLog(line, phase, epoch)
+      let offset = 0
+      while (offset < text.length) {
+        if (pending.length >= MAX_PENDING_LOG_LENGTH) {
+          this.appendLog(pending, phase, epoch)
+          pending = ''
+        }
+
+        const end = offset + MAX_PENDING_LOG_LENGTH - pending.length
+        pending += text.slice(offset, end)
+        offset = end
+
+        const lines = pending.split(/\r\n|\n|\r/)
+        pending = lines.pop() ?? ''
+        for (const line of lines) this.appendLog(line, phase, epoch)
+      }
     }
 
     try {
