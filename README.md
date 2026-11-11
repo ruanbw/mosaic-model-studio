@@ -40,7 +40,10 @@ Mosaic 是一个浏览器内的多模型工作台：使用同一段提示词选�
 
 ### 本地开发
 
-环境要求：Node.js 22+、pnpm 12+，以及支持 WebContainer / SharedArrayBuffer 的现代浏览器。
+环境要求：Node.js 22+、pnpm 12.5.1（与 `package.json` 的 `packageManager` 字段一致），以及支持 WebContainer / SharedArrayBuffer 的现代浏览器。
+
+推荐通过 [Corepack](https://nodejs.org/api/corepack.html) 固定 pnpm 版本：`corepack enable` 后，`pnpm` 会自动使用 `packageManager` 指定的版本。
+请勿用 `npx pnpm` 代替全局 `pnpm`：`npx` 可能拉取到与项目不同的 pnpm 版本，导致锁文件或脚本行为不一致。
 
 ```bash
 pnpm install
@@ -215,7 +218,10 @@ Mosaic is a browser-based multi-model workspace. It sends one prompt to several 
 
 ### Local development
 
-Requirements: Node.js 22+, pnpm 12+, and a modern browser that supports WebContainer / SharedArrayBuffer.
+Requirements: Node.js 22+, pnpm 12.5.1 (matching the `packageManager` field in `package.json`), and a modern browser that supports WebContainer / SharedArrayBuffer.
+
+To pin the pnpm version, enable [Corepack](https://nodejs.org/api/corepack.html) with `corepack enable`; `pnpm` will then use the version from `packageManager`.
+Avoid `npx pnpm`: it can fetch a different pnpm version than the project expects, which makes lockfile and script behavior inconsistent.
 
 ```bash
 pnpm install
