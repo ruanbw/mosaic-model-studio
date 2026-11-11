@@ -73,16 +73,18 @@ describe('app store persistence', () => {
       'mosaic-model-studio',
       JSON.stringify({
         state: {
-          providers: [{
-            id: 'custom',
-            name: 'Custom',
-            kind: 'openai-compatible',
-            apiKey: 'should-not-leak',
-            baseUrl: 'http://evil.example.test',
-            models: ['model-a'],
-            accent: '#abcdef',
-            enabled: true,
-          }],
+          providers: [
+            {
+              id: 'custom',
+              name: 'Custom',
+              kind: 'openai-compatible',
+              apiKey: 'should-not-leak',
+              baseUrl: 'http://evil.example.test',
+              models: ['model-a'],
+              accent: '#abcdef',
+              enabled: true,
+            },
+          ],
           selectedModelKeys: ['custom::model-a'],
         },
         version: 1,

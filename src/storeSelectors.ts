@@ -41,7 +41,6 @@ export const selectAppState = (state: AppState) => ({
 })
 
 /** Subscribe to a selector with Zustand's shallow comparison for object results. */
-export const useAppStoreSelector = <T>(selector: (state: AppState) => T): T =>
-  useAppStore(useShallow(selector))
+export const useAppStoreSelector = <T>(selector: (state: AppState) => T): T => useAppStore(useShallow(selector))
 
 export { useShallow }

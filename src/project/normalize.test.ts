@@ -14,9 +14,7 @@ import {
 } from './normalize'
 import type { GeneratedProject } from './types'
 
-const webFiles = [
-  { path: './src/main.tsx', content: 'export const App = () => <main>Hello</main>' },
-]
+const webFiles = [{ path: './src/main.tsx', content: 'export const App = () => <main>Hello</main>' }]
 
 const encodeProject = (files: unknown[], overrides: Record<string, unknown> = {}) =>
   JSON.stringify({
@@ -32,9 +30,7 @@ describe('normalizeGeneratedProject', () => {
     const result = normalizeGeneratedProject(encodeProject(webFiles), 'fallback')
 
     expect(result.project.kind).toBe('web')
-    expect(result.project.files).toEqual([
-      { path: 'src/main.tsx', content: webFiles[0].content },
-    ])
+    expect(result.project.files).toEqual([{ path: 'src/main.tsx', content: webFiles[0].content }])
     expect(result.html).toBe('')
   })
 
@@ -49,10 +45,7 @@ describe('normalizeGeneratedProject', () => {
     'assets/logo.png',
   ])('rejects unsafe or protected project path %s', (path) => {
     expect(() =>
-      normalizeGeneratedProject(
-        encodeProject([{ path, content: 'not allowed' }, ...webFiles]),
-        'fallback',
-      ),
+      normalizeGeneratedProject(encodeProject([{ path, content: 'not allowed' }, ...webFiles]), 'fallback'),
     ).toThrow()
   })
 
@@ -74,43 +67,44 @@ describe('normalizeGeneratedProject', () => {
       })),
     ]
 
-    expect(() => normalizeGeneratedProject(encodeProject(files), 'fallback'))
-      .toThrow('项目最多允许 32 个文件')
+    expect(() => normalizeGeneratedProject(encodeProject(files), 'fallback')).toThrow('项目最多允许 32 个文件')
   })
 
   it('enforces per-file and aggregate UTF-8 byte limits', () => {
-    expect(() => normalizeGeneratedProject(
-      encodeProject([{ ...webFiles[0], content: 'a'.repeat(64 * 1024 + 1) }]),
-      'fallback',
-    )).toThrow('单个项目文件不能超过 64KB')
+    expect(() =>
+      normalizeGeneratedProject(encodeProject([{ ...webFiles[0], content: 'a'.repeat(64 * 1024 + 1) }]), 'fallback'),
+    ).toThrow('单个项目文件不能超过 64KB')
 
-    expect(() => normalizeGeneratedProject(
-      encodeProject([
-        ...webFiles,
-        ...Array.from({ length: 5 }, (_, index) => ({
-          path: `src/chunk-${index}.txt`,
-          content: '界'.repeat(20 * 1024),
-        })),
-      ]),
-      'fallback',
-    )).toThrow('项目文件总大小不能超过 256KB')
+    expect(() =>
+      normalizeGeneratedProject(
+        encodeProject([
+          ...webFiles,
+          ...Array.from({ length: 5 }, (_, index) => ({
+            path: `src/chunk-${index}.txt`,
+            content: '界'.repeat(20 * 1024),
+          })),
+        ]),
+        'fallback',
+      ),
+    ).toThrow('项目文件总大小不能超过 256KB')
   })
 
   it('rejects control characters in file content', () => {
-    expect(() => normalizeGeneratedProject(
-      encodeProject([{ ...webFiles[0], content: 'const App = () => null\u0000' }]),
-      'fallback',
-    )).toThrow('项目文件不是安全文本')
+    expect(() =>
+      normalizeGeneratedProject(
+        encodeProject([{ ...webFiles[0], content: 'const App = () => null\u0000' }]),
+        'fallback',
+      ),
+    ).toThrow('项目文件不是安全文本')
   })
 
   it('rejects paths that collide after normalization or case folding', () => {
-    expect(() => normalizeGeneratedProject(
-      encodeProject([
-        ...webFiles,
-        { path: './SRC/MAIN.TSX', content: 'export const App = () => null' },
-      ]),
-      'fallback',
-    )).toThrow('项目文件路径重复')
+    expect(() =>
+      normalizeGeneratedProject(
+        encodeProject([...webFiles, { path: './SRC/MAIN.TSX', content: 'export const App = () => null' }]),
+        'fallback',
+      ),
+    ).toThrow('项目文件路径重复')
   })
 
   it('classifies a script-free index document as static and creates a preview', () => {

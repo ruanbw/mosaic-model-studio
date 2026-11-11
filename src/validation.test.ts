@@ -20,17 +20,15 @@ describe('providerDraftSchema', () => {
     expect(providerDraftSchema.safeParse({ ...validDraft, baseUrl }).success).toBe(true)
   })
 
-  it.each([
-    'http://example.com/v1',
-    'ftp://example.com/v1',
-    'https://',
-    'http://localhost.evil.example/v1',
-  ])('rejects unsafe or malformed base URL %s', (baseUrl) => {
-    const result = providerDraftSchema.safeParse({ ...validDraft, baseUrl })
+  it.each(['http://example.com/v1', 'ftp://example.com/v1', 'https://', 'http://localhost.evil.example/v1'])(
+    'rejects unsafe or malformed base URL %s',
+    (baseUrl) => {
+      const result = providerDraftSchema.safeParse({ ...validDraft, baseUrl })
 
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      expect(result.error.issues.some((issue) => issue.path.includes('baseUrl'))).toBe(true)
-    }
-  })
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues.some((issue) => issue.path.includes('baseUrl'))).toBe(true)
+      }
+    },
+  )
 })

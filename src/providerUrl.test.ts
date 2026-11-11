@@ -4,7 +4,9 @@ import { isAllowedProviderBaseUrl, isDefaultProviderBaseUrl, normalizeProviderBa
 describe('provider URL normalization', () => {
   it('canonicalizes legacy versioned defaults', () => {
     expect(normalizeProviderBaseUrl('anthropic', 'https://api.anthropic.com/v1')).toBe('https://api.anthropic.com')
-    expect(normalizeProviderBaseUrl('gemini', 'https://generativelanguage.googleapis.com/v1beta/')).toBe('https://generativelanguage.googleapis.com')
+    expect(normalizeProviderBaseUrl('gemini', 'https://generativelanguage.googleapis.com/v1beta/')).toBe(
+      'https://generativelanguage.googleapis.com',
+    )
   })
 
   it('recognizes legacy defaults when switching protocols', () => {
@@ -13,7 +15,9 @@ describe('provider URL normalization', () => {
   })
 
   it('keeps custom gateways while removing trailing slashes', () => {
-    expect(normalizeProviderBaseUrl('openai-compatible', 'https://gateway.example.test/api/')).toBe('https://gateway.example.test/api')
+    expect(normalizeProviderBaseUrl('openai-compatible', 'https://gateway.example.test/api/')).toBe(
+      'https://gateway.example.test/api',
+    )
   })
 
   it('rejects credentials, fragments, remote HTTP, and malformed URLs', () => {

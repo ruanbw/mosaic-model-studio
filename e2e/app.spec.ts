@@ -12,10 +12,11 @@ const setEnglish = async (page: Page) => {
   }, languageStorageKey)
 }
 
-const currentSettings = async (page: Page) => page.evaluate((key) => {
-  const value = window.localStorage.getItem(key)
-  return value ? JSON.parse(value) as { state?: Record<string, unknown> } : undefined
-}, appStorageKey)
+const currentSettings = async (page: Page) =>
+  page.evaluate((key) => {
+    const value = window.localStorage.getItem(key)
+    return value ? (JSON.parse(value) as { state?: Record<string, unknown> }) : undefined
+  }, appStorageKey)
 
 const waitForStudio = async (page: Page) => {
   await page.goto('/')
@@ -145,24 +146,29 @@ test('static results download a ZIP containing an index.html', async ({ page }) 
 test('stopping a mocked provider request preserves a cancelled result', async ({ page }) => {
   await setEnglish(page)
   const settings = {
-    providers: [{
-      id: 'playwright-mock',
-      name: 'Playwright mock',
-      kind: 'openai',
-      apiKey: 'e2e-placeholder-key',
-      baseUrl: 'https://api.openai.test/v1',
-      models: ['mock-model'],
-      accent: '#8ef0c4',
-      enabled: true,
-    }],
+    providers: [
+      {
+        id: 'playwright-mock',
+        name: 'Playwright mock',
+        kind: 'openai',
+        apiKey: 'e2e-placeholder-key',
+        baseUrl: 'https://api.openai.test/v1',
+        models: ['mock-model'],
+        accent: '#8ef0c4',
+        enabled: true,
+      },
+    ],
     selectedModelKeys: ['playwright-mock::mock-model'],
     prompt: 'Create a deterministic mock result',
     demoMode: false,
     theme: 'dark',
   }
-  await page.addInitScript(({ key, state }) => {
-    window.localStorage.setItem(key, JSON.stringify({ state, version: 1 }))
-  }, { key: appStorageKey, state: settings })
+  await page.addInitScript(
+    ({ key, state }) => {
+      window.localStorage.setItem(key, JSON.stringify({ state, version: 1 }))
+    },
+    { key: appStorageKey, state: settings },
+  )
 
   const requestStarted = deferred()
   const releaseRequest = deferred()

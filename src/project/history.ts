@@ -49,18 +49,14 @@ const truncateText = (value: string, maxLength: number): string => {
 
   let prefix = value.slice(0, maxLength)
   const lastCodeUnit = prefix.charCodeAt(prefix.length - 1)
-  if (lastCodeUnit >= 0xD800 && lastCodeUnit <= 0xDBFF) prefix = prefix.slice(0, -1)
+  if (lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff) prefix = prefix.slice(0, -1)
   return prefix.trimEnd()
 }
 
 const removeUnsafeText = (value: string): string =>
-  value
-    .replace(ANSI_ESCAPE, '')
-    .replace(/\r\n?/g, '\n')
-    .replace(CONTROL_CHARACTERS, ' ')
+  value.replace(ANSI_ESCAPE, '').replace(/\r\n?/g, '\n').replace(CONTROL_CHARACTERS, ' ')
 
-const cleanPrompt = (value: string): string =>
-  truncateText(removeUnsafeText(value).trim(), MAX_HISTORY_PROMPT_LENGTH)
+const cleanPrompt = (value: string): string => truncateText(removeUnsafeText(value).trim(), MAX_HISTORY_PROMPT_LENGTH)
 
 const cleanModel = (value: string): string =>
   truncateText(removeUnsafeText(value).replace(/\s+/g, ' ').trim(), MAX_HISTORY_MODEL_LENGTH)
@@ -131,9 +127,7 @@ const normalizeEntry = (value: unknown): RunHistoryEntry | null => {
   const models = normalizeModels(value.models)
   if (!prompt || models.length === 0) return null
 
-  const resultSummary = typeof value.resultSummary === 'string'
-    ? cleanResultSummary(value.resultSummary)
-    : ''
+  const resultSummary = typeof value.resultSummary === 'string' ? cleanResultSummary(value.resultSummary) : ''
   const withoutId: Omit<RunHistoryEntry, 'id'> = {
     prompt,
     demoMode: value.demoMode,
@@ -183,10 +177,7 @@ export const createRunHistoryEntry = (input: RunHistoryInput): RunHistoryEntry =
 }
 
 /** Add a run at the front of the newest-first history and enforce its cap. */
-export const addRunHistoryEntry = (
-  history: unknown,
-  input: RunHistoryInput,
-): RunHistoryEntry[] => {
+export const addRunHistoryEntry = (history: unknown, input: RunHistoryInput): RunHistoryEntry[] => {
   const entry = createRunHistoryEntry(input)
   const existing = normalizeRunHistory(history).filter((item) => item.id !== entry.id)
   return [entry, ...existing].slice(0, MAX_HISTORY_ENTRIES)
@@ -201,10 +192,12 @@ const escapeJsonCharacters = (value: string): string =>
   })
 
 const encodeEnvelope = (entries: RunHistoryEntry[]): string =>
-  escapeJsonCharacters(JSON.stringify({
-    schemaVersion: HISTORY_SCHEMA_VERSION,
-    entries,
-  } satisfies RunHistoryEnvelope))
+  escapeJsonCharacters(
+    JSON.stringify({
+      schemaVersion: HISTORY_SCHEMA_VERSION,
+      entries,
+    } satisfies RunHistoryEnvelope),
+  )
 
 /** Serialize only normalized fields and keep the payload below its byte cap. */
 export const serializeRunHistory = (value: unknown): string => {

@@ -63,9 +63,7 @@ class ProcessSpawnTimeoutError extends Error {
 
 function isSupportedEnvironment(): boolean {
   return (
-    typeof window !== 'undefined' &&
-    window.crossOriginIsolated === true &&
-    typeof SharedArrayBuffer !== 'undefined'
+    typeof window !== 'undefined' && window.crossOriginIsolated === true && typeof SharedArrayBuffer !== 'undefined'
   )
 }
 
@@ -109,11 +107,12 @@ function toFileSystemTree(files: Record<string, string>): FileSystemTree {
 }
 
 function errorMessage(error: unknown): string {
-  const message = error instanceof Error
-    ? error.message
-    : typeof error === 'object' && error !== null && 'message' in error
-      ? String(error.message)
-      : String(error)
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'object' && error !== null && 'message' in error
+        ? String(error.message)
+        : String(error)
   return message.replace(/[\r\n]+/g, ' ').slice(0, MAX_LOG_LENGTH)
 }
 
@@ -218,98 +217,100 @@ export class WebContainerManager {
     // Invalidate callbacks immediately; serializing the filesystem transition prevents two spawns overlapping.
     void this.stopCurrentProcess()
 
-    const run = this.operation.catch(() => undefined).then(async () => {
-      try {
-        if (!this.isCurrent(activationEpoch)) throw new StaleActivationError()
-        if (!isSupportedEnvironment()) {
-          if (this.activeProjectId === projectId) this.activeProjectId = undefined
-          this.publishIfCurrent(activationEpoch, {
-            phase: 'unsupported',
-            projectId,
-            logs: this.state.logs,
-            error: 'WebContainer requires cross-origin isolation and SharedArrayBuffer support',
-          })
-          return
-        }
-
-        const container = await this.ensureBooted(activationEpoch)
-        if (!this.isCurrent(activationEpoch)) throw new StaleActivationError()
-
-        this.publishIfCurrent(activationEpoch, { phase: 'mounting', projectId, logs: [] })
-        await this.stopCurrentProcess()
-        if (!this.isCurrent(activationEpoch)) throw new StaleActivationError()
-        const runtimeFiles = createProjectExportFiles(project)
-        await this.replaceProjectFiles(container, toFileSystemTree(runtimeFiles), activationEpoch)
-        if (!this.isCurrent(activationEpoch)) throw new StaleActivationError()
-
-        if (project.kind !== 'web') {
-          this.publishIfCurrent(activationEpoch, { phase: 'ready', projectId, logs: this.state.logs })
-          return
-        }
-
-        const install = await this.spawn(
-          container,
-          'npm',
-          ['ci', '--ignore-scripts', '--prefer-offline', '--no-audit', '--no-fund'],
-          'install',
-          activationEpoch,
-        )
-        this.publishIfCurrent(activationEpoch, { phase: 'installing', projectId, logs: this.state.logs })
-        const installExit = await this.waitForExit(
-          install,
-          activationEpoch,
-          INSTALL_TIMEOUT_MS,
-          'Dependency installation timed out after 180 seconds',
-          activationAbortController.signal,
-        )
-        if (installExit !== 0) throw new Error(`Dependency installation failed with exit code ${installExit}`)
-        if (!this.isCurrent(activationEpoch)) throw new StaleActivationError()
-
-        const readySubscription = this.listenForServerReady(container, activationEpoch)
+    const run = this.operation
+      .catch(() => undefined)
+      .then(async () => {
         try {
-          const dev = await this.spawn(
+          if (!this.isCurrent(activationEpoch)) throw new StaleActivationError()
+          if (!isSupportedEnvironment()) {
+            if (this.activeProjectId === projectId) this.activeProjectId = undefined
+            this.publishIfCurrent(activationEpoch, {
+              phase: 'unsupported',
+              projectId,
+              logs: this.state.logs,
+              error: 'WebContainer requires cross-origin isolation and SharedArrayBuffer support',
+            })
+            return
+          }
+
+          const container = await this.ensureBooted(activationEpoch)
+          if (!this.isCurrent(activationEpoch)) throw new StaleActivationError()
+
+          this.publishIfCurrent(activationEpoch, { phase: 'mounting', projectId, logs: [] })
+          await this.stopCurrentProcess()
+          if (!this.isCurrent(activationEpoch)) throw new StaleActivationError()
+          const runtimeFiles = createProjectExportFiles(project)
+          await this.replaceProjectFiles(container, toFileSystemTree(runtimeFiles), activationEpoch)
+          if (!this.isCurrent(activationEpoch)) throw new StaleActivationError()
+
+          if (project.kind !== 'web') {
+            this.publishIfCurrent(activationEpoch, { phase: 'ready', projectId, logs: this.state.logs })
+            return
+          }
+
+          const install = await this.spawn(
             container,
             'npm',
-            ['run', 'dev', '--', '--host', '0.0.0.0', '--port', '5173'],
-            'dev',
+            ['ci', '--ignore-scripts', '--prefer-offline', '--no-audit', '--no-fund'],
+            'install',
             activationEpoch,
           )
-          this.publishIfCurrent(activationEpoch, { phase: 'starting', projectId, logs: this.state.logs })
-          const previewUrl = await this.waitForStart(
-            readySubscription.promise,
-            dev,
+          this.publishIfCurrent(activationEpoch, { phase: 'installing', projectId, logs: this.state.logs })
+          const installExit = await this.waitForExit(
+            install,
             activationEpoch,
+            INSTALL_TIMEOUT_MS,
+            'Dependency installation timed out after 180 seconds',
             activationAbortController.signal,
           )
-          this.publishIfCurrent(activationEpoch, { phase: 'ready', projectId, previewUrl, logs: this.state.logs })
-          void dev.exit.then(
-            (code) => this.handleUnexpectedExit(dev, code, activationEpoch),
-            () => this.handleUnexpectedExit(dev, -1, activationEpoch),
-          )
+          if (installExit !== 0) throw new Error(`Dependency installation failed with exit code ${installExit}`)
+          if (!this.isCurrent(activationEpoch)) throw new StaleActivationError()
+
+          const readySubscription = this.listenForServerReady(container, activationEpoch)
+          try {
+            const dev = await this.spawn(
+              container,
+              'npm',
+              ['run', 'dev', '--', '--host', '0.0.0.0', '--port', '5173'],
+              'dev',
+              activationEpoch,
+            )
+            this.publishIfCurrent(activationEpoch, { phase: 'starting', projectId, logs: this.state.logs })
+            const previewUrl = await this.waitForStart(
+              readySubscription.promise,
+              dev,
+              activationEpoch,
+              activationAbortController.signal,
+            )
+            this.publishIfCurrent(activationEpoch, { phase: 'ready', projectId, previewUrl, logs: this.state.logs })
+            void dev.exit.then(
+              (code) => this.handleUnexpectedExit(dev, code, activationEpoch),
+              () => this.handleUnexpectedExit(dev, -1, activationEpoch),
+            )
+          } finally {
+            readySubscription.dispose()
+          }
+        } catch (error) {
+          if (!this.isCurrent(activationEpoch) || error instanceof StaleActivationError) return
+          await this.stopCurrentProcess().catch(() => undefined)
+          if (!this.isCurrent(activationEpoch)) return
+          this.flushLogs(activationEpoch)
+          if (!this.isCurrent(activationEpoch)) return
+          if (this.activeProjectId === projectId) this.activeProjectId = undefined
+          this.publish({
+            phase: 'error',
+            projectId,
+            logs: this.state.logs,
+            error: errorMessage(error),
+          })
         } finally {
-          readySubscription.dispose()
+          if (this.activationPromise === run) this.activationPromise = undefined
+          if (this.activationAbortController === activationAbortController) {
+            this.activationAbortController = undefined
+          }
+          if (this.operation === run) this.operation = Promise.resolve()
         }
-      } catch (error) {
-        if (!this.isCurrent(activationEpoch) || error instanceof StaleActivationError) return
-        await this.stopCurrentProcess().catch(() => undefined)
-        if (!this.isCurrent(activationEpoch)) return
-        this.flushLogs(activationEpoch)
-        if (!this.isCurrent(activationEpoch)) return
-        if (this.activeProjectId === projectId) this.activeProjectId = undefined
-        this.publish({
-          phase: 'error',
-          projectId,
-          logs: this.state.logs,
-          error: errorMessage(error),
-        })
-      } finally {
-        if (this.activationPromise === run) this.activationPromise = undefined
-        if (this.activationAbortController === activationAbortController) {
-          this.activationAbortController = undefined
-        }
-        if (this.operation === run) this.operation = Promise.resolve()
-      }
-    })
+      })
 
     this.operation = run
     this.activationPromise = run
@@ -329,25 +330,27 @@ export class WebContainerManager {
     this.publish({ phase: 'stopping', projectId, logs: this.state.logs })
     void this.stopCurrentProcess()
 
-    const run = this.operation.catch(() => undefined).then(async () => {
-      try {
-        await this.stopCurrentProcess()
-        if (this.container) await this.clearProjectFiles(this.container)
-      } catch (error) {
-        if (!this.isCurrent(stopEpoch)) return
-        this.publish({
-          phase: 'error',
-          projectId,
-          logs: this.state.logs,
-          error: errorMessage(error),
-        })
-        return
-      }
+    const run = this.operation
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          await this.stopCurrentProcess()
+          if (this.container) await this.clearProjectFiles(this.container)
+        } catch (error) {
+          if (!this.isCurrent(stopEpoch)) return
+          this.publish({
+            phase: 'error',
+            projectId,
+            logs: this.state.logs,
+            error: errorMessage(error),
+          })
+          return
+        }
 
-      if (this.isCurrent(stopEpoch)) {
-        this.publish({ phase: 'idle', logs: this.state.logs })
-      }
-    })
+        if (this.isCurrent(stopEpoch)) {
+          this.publish({ phase: 'idle', logs: this.state.logs })
+        }
+      })
 
     this.operation = run
     return run
@@ -428,9 +431,11 @@ export class WebContainerManager {
     const api = await import('@webcontainer/api')
     if (!this.apiKeyConfigured) {
       this.apiKeyConfigured = true
-      const runtimeEnv = (import.meta as ImportMeta & {
-        env?: { VITE_WEBCONTAINER_API_KEY?: string }
-      }).env
+      const runtimeEnv = (
+        import.meta as ImportMeta & {
+          env?: { VITE_WEBCONTAINER_API_KEY?: string }
+        }
+      ).env
       const apiKey = runtimeEnv?.VITE_WEBCONTAINER_API_KEY
       if (apiKey) api.configureAPIKey(apiKey)
     }
@@ -440,7 +445,13 @@ export class WebContainerManager {
   private bindContainerError(container: WebContainer): void {
     this.containerErrorUnsubscribe?.()
     this.containerErrorUnsubscribe = container.on('error', (error) => {
-      if (this.disposed || this.container !== container || this.state.phase === 'stopping' || this.state.phase === 'idle') return
+      if (
+        this.disposed ||
+        this.container !== container ||
+        this.state.phase === 'stopping' ||
+        this.state.phase === 'idle'
+      )
+        return
       const errorEpoch = this.epoch
       this.flushLogs()
       if (!this.isCurrent(errorEpoch) || this.container !== container) return

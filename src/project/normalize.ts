@@ -127,7 +127,11 @@ const isBuildConfigName = (name: string): boolean => {
 
 export const isForbiddenBuildPath = (path: string): boolean => {
   const segments = path.replaceAll('\\', '/').toLowerCase().split('/')
-  if (segments.slice(0, -1).some((segment) => /^(?:tsconfig|jsconfig)(?:[._-]|$)|^(?:^|[.])vite[.]config(?:[.]|$)/.test(segment))) {
+  if (
+    segments
+      .slice(0, -1)
+      .some((segment) => /^(?:tsconfig|jsconfig)(?:[._-]|$)|^(?:^|[.])vite[.]config(?:[.]|$)/.test(segment))
+  ) {
     return true
   }
   return isBuildConfigName(segments.at(-1) ?? '')
@@ -137,12 +141,12 @@ export const STATIC_PREVIEW_CSP = [
   "default-src 'none'",
   "base-uri 'none'",
   "connect-src 'none'",
-  "font-src data:",
+  'font-src data:',
   "form-action 'none'",
   "frame-src 'none'",
   "child-src 'none'",
-  "img-src data: blob:",
-  "media-src data: blob:",
+  'img-src data: blob:',
+  'media-src data: blob:',
   "object-src 'none'",
   "script-src 'none'",
   "style-src 'unsafe-inline'",
@@ -164,10 +168,43 @@ const STATIC_PREVIEW_FORBIDDEN_TAGS = [
 ]
 
 const BINARY_EXTENSIONS = new Set([
-  '.7z', '.avif', '.bmp', '.bz2', '.class', '.dll', '.doc', '.docx', '.exe', '.gif',
-  '.gz', '.heic', '.ico', '.jar', '.jpeg', '.jpg', '.mov', '.mp3', '.mp4', '.ogg',
-  '.otf', '.pdf', '.png', '.rar', '.so', '.tar', '.tif', '.tiff', '.ttf', '.wasm',
-  '.webm', '.webp', '.woff', '.woff2', '.xls', '.xlsx', '.zip',
+  '.7z',
+  '.avif',
+  '.bmp',
+  '.bz2',
+  '.class',
+  '.dll',
+  '.doc',
+  '.docx',
+  '.exe',
+  '.gif',
+  '.gz',
+  '.heic',
+  '.ico',
+  '.jar',
+  '.jpeg',
+  '.jpg',
+  '.mov',
+  '.mp3',
+  '.mp4',
+  '.ogg',
+  '.otf',
+  '.pdf',
+  '.png',
+  '.rar',
+  '.so',
+  '.tar',
+  '.tif',
+  '.tiff',
+  '.ttf',
+  '.wasm',
+  '.webm',
+  '.webp',
+  '.woff',
+  '.woff2',
+  '.xls',
+  '.xlsx',
+  '.zip',
 ])
 
 const escapeHtml = (value: string) =>
@@ -188,7 +225,7 @@ const truncateText = (value: string, maxLength: number): string => {
 
   let prefix = value.slice(0, maxLength - 1)
   const lastCodeUnit = prefix.charCodeAt(prefix.length - 1)
-  if (lastCodeUnit >= 0xD800 && lastCodeUnit <= 0xDBFF) prefix = prefix.slice(0, -1)
+  if (lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff) prefix = prefix.slice(0, -1)
   return `${prefix.trimEnd()}…`
 }
 
@@ -272,10 +309,7 @@ const assertTextContent = (content: string, path: string) => {
   }
 }
 
-const normalizeFiles = (
-  value: unknown,
-  options: { allowHostScaffold?: boolean } = {},
-): ProjectFile[] => {
+const normalizeFiles = (value: unknown, options: { allowHostScaffold?: boolean } = {}): ProjectFile[] => {
   if (!Array.isArray(value)) throw new Error('GeneratedProject.files 必须是数组')
   if (value.length === 0) throw new Error('GeneratedProject.files 不能为空')
   if (value.length > MAX_FILES) throw new Error(`项目最多允许 ${MAX_FILES} 个文件`)
@@ -340,7 +374,8 @@ export const normalizeGeneratedProject = (raw: string, fallbackTitle: string): G
   const files = normalizeFiles(value.files)
   const paths = new Set(files.map((file) => file.path))
   const indexHtml = files.find((file) => file.path === 'index.html')?.content
-  const isStatic = files.length === 1 && paths.has('index.html') && indexHtml !== undefined && !hasApplicationScripting(indexHtml)
+  const isStatic =
+    files.length === 1 && paths.has('index.html') && indexHtml !== undefined && !hasApplicationScripting(indexHtml)
 
   if (!isStatic && files.some((file) => file.path.toLowerCase() === 'index.html')) {
     throw new Error('Web 项目不能覆盖固定 index.html scaffold')
@@ -349,7 +384,8 @@ export const normalizeGeneratedProject = (raw: string, fallbackTitle: string): G
     throw new Error('Web 项目必须包含 src/main.tsx')
   }
 
-  const title = normalizeProjectText(value.title, MAX_TITLE_LENGTH) ||
+  const title =
+    normalizeProjectText(value.title, MAX_TITLE_LENGTH) ||
     normalizeProjectText(fallbackTitle, MAX_TITLE_LENGTH, 'Untitled project')
   const summary = normalizeProjectText(value.summary, MAX_SUMMARY_LENGTH)
   const project: GeneratedProject = {
@@ -391,26 +427,30 @@ export default defineConfig({
   server: { host: '0.0.0.0', strictPort: true },
 })
 `,
-  'tsconfig.json': JSON.stringify({
-    compilerOptions: {
-      target: 'ES2022',
-      useDefineForClassFields: true,
-      lib: ['ES2022', 'DOM', 'DOM.Iterable'],
-      allowJs: false,
-      skipLibCheck: true,
-      esModuleInterop: true,
-      allowSyntheticDefaultImports: true,
-      strict: true,
-      forceConsistentCasingInFileNames: true,
-      module: 'ESNext',
-      moduleResolution: 'Bundler',
-      resolveJsonModule: true,
-      isolatedModules: true,
-      noEmit: true,
-      jsx: 'react-jsx',
+  'tsconfig.json': JSON.stringify(
+    {
+      compilerOptions: {
+        target: 'ES2022',
+        useDefineForClassFields: true,
+        lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+        allowJs: false,
+        skipLibCheck: true,
+        esModuleInterop: true,
+        allowSyntheticDefaultImports: true,
+        strict: true,
+        forceConsistentCasingInFileNames: true,
+        module: 'ESNext',
+        moduleResolution: 'Bundler',
+        resolveJsonModule: true,
+        isolatedModules: true,
+        noEmit: true,
+        jsx: 'react-jsx',
+      },
+      include: ['src'],
     },
-    include: ['src'],
-  }, null, 2),
+    null,
+    2,
+  ),
 }
 
 export const createProjectRuntimeFiles = (project: GeneratedProject): Record<string, string> => {

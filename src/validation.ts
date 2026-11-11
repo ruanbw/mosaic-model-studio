@@ -9,10 +9,7 @@ export const providerDraftSchema = z.object({
     .string()
     .trim()
     .max(300, '地址最多 300 个字符')
-    .refine(
-      (value) => value === '' || isAllowedProviderBaseUrl(value),
-      '出于安全考虑，仅允许 HTTPS 或本机 HTTP 地址',
-    ),
+    .refine((value) => value === '' || isAllowedProviderBaseUrl(value), '出于安全考虑，仅允许 HTTPS 或本机 HTTP 地址'),
   models: z.string().trim().max(20_000, '模型列表过长'),
 })
 

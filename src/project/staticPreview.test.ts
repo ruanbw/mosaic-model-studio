@@ -2,9 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('dompurify', () => ({
   default: {
-    sanitize: (value: string) => value
-      .replace(/<\/?(?:script|form|input|iframe|object|embed)\b[^>]*>/gi, '')
-      .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, ''),
+    sanitize: (value: string) =>
+      value
+        .replace(/<\/?(?:script|form|input|iframe|object|embed)\b[^>]*>/gi, '')
+        .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, ''),
   },
 }))
 
@@ -73,10 +74,9 @@ describe('project text normalization', () => {
 
 describe('project size and path limits', () => {
   it('rejects paths longer than the normalized runtime limit', () => {
-    expect(() => normalizeGeneratedProject(
-      encodeProject([{ path: `src/${'a'.repeat(256)}.tsx`, content: 'x' }]),
-      'fallback',
-    )).toThrow('项目文件路径过长')
+    expect(() =>
+      normalizeGeneratedProject(encodeProject([{ path: `src/${'a'.repeat(256)}.tsx`, content: 'x' }]), 'fallback'),
+    ).toThrow('项目文件路径过长')
   })
 
   it('rejects more than 32 files', () => {
@@ -86,10 +86,12 @@ describe('project size and path limits', () => {
   })
 
   it('rejects a file over 64 KiB by UTF-8 bytes', () => {
-    expect(() => normalizeGeneratedProject(
-      encodeProject([{ path: 'index.html', content: 'a'.repeat(64 * 1024 + 1) }]),
-      'fallback',
-    )).toThrow('单个项目文件不能超过 64KB')
+    expect(() =>
+      normalizeGeneratedProject(
+        encodeProject([{ path: 'index.html', content: 'a'.repeat(64 * 1024 + 1) }]),
+        'fallback',
+      ),
+    ).toThrow('单个项目文件不能超过 64KB')
   })
 
   it('rejects a project over 256 KiB total bytes', () => {
@@ -114,7 +116,7 @@ describe('runtime file policy', () => {
 
     const files = createProjectRuntimeFiles(project)
     expect(Object.keys(files)).toEqual(['index.html'])
-    expect(files['index.html']).toContain("Content-Security-Policy")
+    expect(files['index.html']).toContain('Content-Security-Policy')
     expect(files['index.html']).toContain('<h1>Hello</h1>')
     expect(files['index.html']).toContain('<title>Static</title>')
   })

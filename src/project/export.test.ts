@@ -11,9 +11,9 @@ import { createProjectExportFiles, createProjectZip } from './export'
 import { createProjectRuntimeFiles, STATIC_PREVIEW_CSP } from './normalize'
 import type { GeneratedProject, ProjectFile } from './types'
 
-const createWebProject = (files: ProjectFile[] = [
-  { path: './src/main.tsx', content: 'export const App = () => <main>Hello</main>' },
-]): GeneratedProject => ({
+const createWebProject = (
+  files: ProjectFile[] = [{ path: './src/main.tsx', content: 'export const App = () => <main>Hello</main>' }],
+): GeneratedProject => ({
   schemaVersion: 1,
   kind: 'web',
   title: 'Generated app',
@@ -59,10 +59,12 @@ describe('createProjectExportFiles', () => {
       kind: 'static',
       title: 'Static page',
       summary: '',
-      files: [{
-        path: 'index.html',
-        content: '<!doctype html><html><head><title>Model title</title></head><body><main>Hello</main></body></html>',
-      }],
+      files: [
+        {
+          path: 'index.html',
+          content: '<!doctype html><html><head><title>Model title</title></head><body><main>Hello</main></body></html>',
+        },
+      ],
     }
 
     const archive = unzipSync(createProjectZip(project))
@@ -76,15 +78,17 @@ describe('createProjectExportFiles', () => {
     const archive = unzipSync(createProjectZip(project))
     const files = createProjectExportFiles(project)
 
-    expect(Object.keys(archive)).toEqual(expect.arrayContaining([
-      'Generated-app/package.json',
-      'Generated-app/package-lock.json',
-      'Generated-app/index.html',
-      'Generated-app/vite.config.ts',
-      'Generated-app/tsconfig.json',
-      'Generated-app/src/main.tsx',
-      'Generated-app/README.md',
-    ]))
+    expect(Object.keys(archive)).toEqual(
+      expect.arrayContaining([
+        'Generated-app/package.json',
+        'Generated-app/package-lock.json',
+        'Generated-app/index.html',
+        'Generated-app/vite.config.ts',
+        'Generated-app/tsconfig.json',
+        'Generated-app/src/main.tsx',
+        'Generated-app/README.md',
+      ]),
+    )
     expect(strFromU8(archive['Generated-app/src/main.tsx']!)).toBe(files['src/main.tsx'])
     expect(strFromU8(archive['Generated-app/README.md']!)).toContain('npm ci')
   })
@@ -92,17 +96,23 @@ describe('createProjectExportFiles', () => {
   it('keeps archive paths safe for hostile project titles', () => {
     for (const title of ['..', '.', 'CON', 'foo.', 'a/../../b', 'x'.repeat(200)]) {
       const project = {
-        ...createWebProject([{
-          path: 'src/main.tsx',
-          content: 'export const App = () => null',
-        }]),
+        ...createWebProject([
+          {
+            path: 'src/main.tsx',
+            content: 'export const App = () => null',
+          },
+        ]),
         title,
       }
       const archive = unzipSync(createProjectZip(project))
       const paths = Object.keys(archive)
 
       expect(paths.length).toBeGreaterThan(0)
-      expect(paths.every((path) => path.split('/').every((segment) => segment !== '.' && segment !== '..' && !segment.includes('\\')))).toBe(true)
+      expect(
+        paths.every((path) =>
+          path.split('/').every((segment) => segment !== '.' && segment !== '..' && !segment.includes('\\')),
+        ),
+      ).toBe(true)
       expect(paths.every((path) => !path.startsWith('/'))).toBe(true)
       // The title is still present in the generated project; only the archive
       // directory is sanitized independently for filesystem compatibility.
@@ -111,10 +121,14 @@ describe('createProjectExportFiles', () => {
   })
 
   it('rejects archive path conflicts before creating a ZIP', () => {
-    expect(() => createProjectZip(createWebProject([
-      { path: 'src', content: 'not a directory' },
-      { path: 'src/main.tsx', content: 'export const App = () => null' },
-    ]))).toThrow('项目文件与目录路径冲突')
+    expect(() =>
+      createProjectZip(
+        createWebProject([
+          { path: 'src', content: 'not a directory' },
+          { path: 'src/main.tsx', content: 'export const App = () => null' },
+        ]),
+      ),
+    ).toThrow('项目文件与目录路径冲突')
   })
 
   it('exports static files through the same host CSP policy as runtime', () => {
@@ -123,10 +137,13 @@ describe('createProjectExportFiles', () => {
       kind: 'static',
       title: 'Host title',
       summary: '',
-      files: [{
-        path: 'index.html',
-        content: '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src https:"><title>Model title</title></head><body><main>Safe body</main></body></html>',
-      }],
+      files: [
+        {
+          path: 'index.html',
+          content:
+            '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src https:"><title>Model title</title></head><body><main>Safe body</main></body></html>',
+        },
+      ],
     }
 
     const exportFiles = createProjectExportFiles(project)
@@ -151,23 +168,25 @@ describe('createProjectExportFiles', () => {
   })
 
   it('rejects files above the per-file and aggregate UTF-8 byte limits', () => {
-    expect(() => createProjectExportFiles(createWebProject([
-      { path: 'src/main.tsx', content: 'a'.repeat(64 * 1024 + 1) },
-    ]))).toThrow('单个项目文件不能超过 64KB')
+    expect(() =>
+      createProjectExportFiles(createWebProject([{ path: 'src/main.tsx', content: 'a'.repeat(64 * 1024 + 1) }])),
+    ).toThrow('单个项目文件不能超过 64KB')
 
-    expect(() => createProjectExportFiles(createWebProject([
-      ...projectFiles(),
-      ...Array.from({ length: 5 }, (_, index) => ({
-        path: `src/chunk-${index}.txt`,
-        content: '界'.repeat(20 * 1024),
-      })),
-    ]))).toThrow('项目文件总大小不能超过 256KB')
+    expect(() =>
+      createProjectExportFiles(
+        createWebProject([
+          ...projectFiles(),
+          ...Array.from({ length: 5 }, (_, index) => ({
+            path: `src/chunk-${index}.txt`,
+            content: '界'.repeat(20 * 1024),
+          })),
+        ]),
+      ),
+    ).toThrow('项目文件总大小不能超过 256KB')
   })
 
   it('rejects control characters in model-controlled content', () => {
-    const project = createWebProject([
-      { path: 'src/main.tsx', content: 'export const App = () => null\u0000' },
-    ])
+    const project = createWebProject([{ path: 'src/main.tsx', content: 'export const App = () => null\u0000' }])
 
     expect(() => createProjectExportFiles(project)).toThrow('项目文件不是安全文本')
   })

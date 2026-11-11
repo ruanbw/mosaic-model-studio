@@ -27,11 +27,13 @@ const makeInput = (overrides: Partial<RunHistoryInput> = {}): RunHistoryInput =>
 
 describe('run history contract', () => {
   it('normalizes a run and generates a stable-shaped identifier', () => {
-    const entry = createRunHistoryEntry(makeInput({
-      prompt: '  hello\u0000world  ',
-      models: [' gpt-4o ', 'gpt-4o', 'claude-\u001b[31m'],
-      resultSummary: '  generated\n  successfully  ',
-    }))
+    const entry = createRunHistoryEntry(
+      makeInput({
+        prompt: '  hello\u0000world  ',
+        models: [' gpt-4o ', 'gpt-4o', 'claude-\u001b[31m'],
+        resultSummary: '  generated\n  successfully  ',
+      }),
+    )
 
     expect(entry.id).toMatch(/^run-/)
     expect(entry.prompt).toBe('hello world')
@@ -41,14 +43,16 @@ describe('run history contract', () => {
   })
 
   it('bounds the number of models and every persisted text field', () => {
-    const entry = createRunHistoryEntry(makeInput({
-      prompt: 'p'.repeat(MAX_HISTORY_PROMPT_LENGTH + 100),
-      models: [
-        ...Array.from({ length: MAX_HISTORY_MODELS + 8 }, (_, index) => `model-${index}`),
-        'm'.repeat(MAX_HISTORY_MODEL_LENGTH + 100),
-      ],
-      resultSummary: 's'.repeat(MAX_HISTORY_RESULT_SUMMARY_LENGTH + 100),
-    }))
+    const entry = createRunHistoryEntry(
+      makeInput({
+        prompt: 'p'.repeat(MAX_HISTORY_PROMPT_LENGTH + 100),
+        models: [
+          ...Array.from({ length: MAX_HISTORY_MODELS + 8 }, (_, index) => `model-${index}`),
+          'm'.repeat(MAX_HISTORY_MODEL_LENGTH + 100),
+        ],
+        resultSummary: 's'.repeat(MAX_HISTORY_RESULT_SUMMARY_LENGTH + 100),
+      }),
+    )
 
     expect(entry.prompt).toHaveLength(MAX_HISTORY_PROMPT_LENGTH)
     expect(entry.models).toHaveLength(MAX_HISTORY_MODELS)
@@ -59,19 +63,25 @@ describe('run history contract', () => {
   it('adds newest first, replaces duplicate ids, and caps entries', () => {
     let history = [] as ReturnType<typeof normalizeRunHistory>
     for (let index = 0; index < MAX_HISTORY_ENTRIES + 3; index += 1) {
-      history = addRunHistoryEntry(history, makeInput({
-        id: `run-${index}`,
-        createdAt: 1_700_000_000_000 + index,
-      }))
+      history = addRunHistoryEntry(
+        history,
+        makeInput({
+          id: `run-${index}`,
+          createdAt: 1_700_000_000_000 + index,
+        }),
+      )
     }
 
     expect(history).toHaveLength(MAX_HISTORY_ENTRIES)
     expect(history[0]?.id).toBe(`run-${MAX_HISTORY_ENTRIES + 2}`)
 
-    const replaced = addRunHistoryEntry(history, makeInput({
-      id: 'run-1',
-      resultSummary: 'updated',
-    }))
+    const replaced = addRunHistoryEntry(
+      history,
+      makeInput({
+        id: 'run-1',
+        resultSummary: 'updated',
+      }),
+    )
     expect(replaced.filter((entry) => entry.id === 'run-1')).toHaveLength(1)
     expect(replaced[0]?.resultSummary).toBe('updated')
   })
@@ -101,10 +111,12 @@ describe('run history contract', () => {
   })
 
   it('serializes a versioned, escaped payload and round-trips it safely', () => {
-    const entry = createRunHistoryEntry(makeInput({
-      prompt: 'Use <script>alert(1)</script> & keep this text',
-      resultSummary: '<strong>done</strong>',
-    }))
+    const entry = createRunHistoryEntry(
+      makeInput({
+        prompt: 'Use <script>alert(1)</script> & keep this text',
+        resultSummary: '<strong>done</strong>',
+      }),
+    )
     const serialized = serializeRunHistory([entry])
 
     expect(serialized).not.toContain('<')
@@ -117,11 +129,13 @@ describe('run history contract', () => {
 
   it('keeps serialized storage bounded and fails closed on invalid input', () => {
     const entries = Array.from({ length: MAX_HISTORY_ENTRIES }, (_, index) =>
-      createRunHistoryEntry(makeInput({
-        id: `bounded-${index}`,
-        prompt: 'p'.repeat(MAX_HISTORY_PROMPT_LENGTH),
-        resultSummary: 's'.repeat(MAX_HISTORY_RESULT_SUMMARY_LENGTH),
-      })),
+      createRunHistoryEntry(
+        makeInput({
+          id: `bounded-${index}`,
+          prompt: 'p'.repeat(MAX_HISTORY_PROMPT_LENGTH),
+          resultSummary: 's'.repeat(MAX_HISTORY_RESULT_SUMMARY_LENGTH),
+        }),
+      ),
     )
     const serialized = serializeRunHistory(entries)
 

@@ -89,36 +89,45 @@ describe('provider SDK signal forwarding', () => {
     const controller = new AbortController()
     openaiMocks.create.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: validProject } }] })
 
-    await generateWithProvider({ ...provider, kind: 'openai' }, 'test-model', 'build something', { signal: controller.signal })
+    await generateWithProvider({ ...provider, kind: 'openai' }, 'test-model', 'build something', {
+      signal: controller.signal,
+    })
 
-    expect(openaiMocks.create).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'test-model' }),
-      { signal: controller.signal },
-    )
+    expect(openaiMocks.create).toHaveBeenCalledWith(expect.objectContaining({ model: 'test-model' }), {
+      signal: controller.signal,
+    })
   })
 
   it('passes the signal to the Anthropic SDK request', async () => {
     const controller = new AbortController()
-    anthropicMocks.create.mockResolvedValue({ stop_reason: 'end_turn', content: [{ type: 'text', text: validProject }] })
+    anthropicMocks.create.mockResolvedValue({
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: validProject }],
+    })
 
-    await generateWithProvider({ ...provider, kind: 'anthropic' }, 'test-model', 'build something', { signal: controller.signal })
+    await generateWithProvider({ ...provider, kind: 'anthropic' }, 'test-model', 'build something', {
+      signal: controller.signal,
+    })
 
-    expect(anthropicMocks.create).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'test-model' }),
-      { signal: controller.signal },
-    )
+    expect(anthropicMocks.create).toHaveBeenCalledWith(expect.objectContaining({ model: 'test-model' }), {
+      signal: controller.signal,
+    })
   })
 
   it('passes the signal to the Gemini SDK request', async () => {
     const controller = new AbortController()
     geminiMocks.generateContent.mockResolvedValue({ text: validProject, candidates: [{ finishReason: 'STOP' }] })
 
-    await generateWithProvider({ ...provider, kind: 'gemini' }, 'test-model', 'build something', { signal: controller.signal })
+    await generateWithProvider({ ...provider, kind: 'gemini' }, 'test-model', 'build something', {
+      signal: controller.signal,
+    })
 
-    expect(geminiMocks.generateContent).toHaveBeenCalledWith(expect.objectContaining({
-      model: 'test-model',
-      config: expect.objectContaining({ abortSignal: controller.signal }),
-    }))
+    expect(geminiMocks.generateContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'test-model',
+        config: expect.objectContaining({ abortSignal: controller.signal }),
+      }),
+    )
   })
 })
 
@@ -126,33 +135,36 @@ describe('generation token and finish boundaries', () => {
   it('caps OpenAI output tokens and reports a length finish', async () => {
     openaiMocks.create.mockResolvedValue({ choices: [{ finish_reason: 'length', message: { content: '' } }] })
 
-    await expect(generateWithProvider({ ...provider, kind: 'openai' }, 'test-model', 'build something'))
-      .rejects.toThrow('模型输出达到 token 上限，项目 JSON 不完整')
-    expect(openaiMocks.create).toHaveBeenCalledWith(
-      expect.objectContaining({ max_completion_tokens: 8_192 }),
-      { signal: undefined },
-    )
+    await expect(
+      generateWithProvider({ ...provider, kind: 'openai' }, 'test-model', 'build something'),
+    ).rejects.toThrow('模型输出达到 token 上限，项目 JSON 不完整')
+    expect(openaiMocks.create).toHaveBeenCalledWith(expect.objectContaining({ max_completion_tokens: 8_192 }), {
+      signal: undefined,
+    })
   })
 
   it('caps Anthropic output tokens and reports max_tokens', async () => {
     anthropicMocks.create.mockResolvedValue({ stop_reason: 'max_tokens', content: [] })
 
-    await expect(generateWithProvider({ ...provider, kind: 'anthropic' }, 'test-model', 'build something'))
-      .rejects.toThrow('模型输出达到 token 上限，项目 JSON 不完整')
-    expect(anthropicMocks.create).toHaveBeenCalledWith(
-      expect.objectContaining({ max_tokens: 8_192 }),
-      { signal: undefined },
-    )
+    await expect(
+      generateWithProvider({ ...provider, kind: 'anthropic' }, 'test-model', 'build something'),
+    ).rejects.toThrow('模型输出达到 token 上限，项目 JSON 不完整')
+    expect(anthropicMocks.create).toHaveBeenCalledWith(expect.objectContaining({ max_tokens: 8_192 }), {
+      signal: undefined,
+    })
   })
 
   it('caps Gemini output tokens and reports MAX_TOKENS', async () => {
     geminiMocks.generateContent.mockResolvedValue({ candidates: [{ finishReason: 'MAX_TOKENS' }] })
 
-    await expect(generateWithProvider({ ...provider, kind: 'gemini' }, 'test-model', 'build something'))
-      .rejects.toThrow('模型输出达到 token 上限，项目 JSON 不完整')
-    expect(geminiMocks.generateContent).toHaveBeenCalledWith(expect.objectContaining({
-      config: expect.objectContaining({ maxOutputTokens: 8_192 }),
-    }))
+    await expect(
+      generateWithProvider({ ...provider, kind: 'gemini' }, 'test-model', 'build something'),
+    ).rejects.toThrow('模型输出达到 token 上限，项目 JSON 不完整')
+    expect(geminiMocks.generateContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({ maxOutputTokens: 8_192 }),
+      }),
+    )
   })
 
   it.each([
@@ -168,13 +180,18 @@ describe('generation token and finish boundaries', () => {
       geminiMocks.generateContent.mockResolvedValue({ candidates: [{ finishReason }] })
     }
 
-    await expect(generateWithProvider({ ...provider, ...providerOverride }, 'test-model', 'build something')).rejects.toThrow(message)
+    await expect(
+      generateWithProvider({ ...provider, ...providerOverride }, 'test-model', 'build something'),
+    ).rejects.toThrow(message)
   })
 
   it('rejects an OpenAI refusal message', async () => {
-    openaiMocks.create.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: '', refusal: 'I cannot help with that.' } }] })
+    openaiMocks.create.mockResolvedValue({
+      choices: [{ finish_reason: 'stop', message: { content: '', refusal: 'I cannot help with that.' } }],
+    })
 
-    await expect(generateWithProvider({ ...provider, kind: 'openai' }, 'test-model', 'build something'))
-      .rejects.toThrow('模型拒绝了本次生成：I cannot help with that.')
+    await expect(
+      generateWithProvider({ ...provider, kind: 'openai' }, 'test-model', 'build something'),
+    ).rejects.toThrow('模型拒绝了本次生成：I cannot help with that.')
   })
 })

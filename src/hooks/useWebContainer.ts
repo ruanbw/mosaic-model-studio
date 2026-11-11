@@ -15,7 +15,7 @@ export function useWebContainer(
   projectId: string | undefined,
 ): WebContainerController {
   const subscribe = useCallback(
-    (listener: () => void) => active ? webContainerManager.subscribe(listener) : () => undefined,
+    (listener: () => void) => (active ? webContainerManager.subscribe(listener) : () => undefined),
     [active],
   )
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)

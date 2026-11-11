@@ -9,24 +9,19 @@ const LEGACY_DEFAULT_BASE_URLS: Record<ProviderKind, readonly string[]> = {
 
 const stripTrailingSlashes = (value: string) => value.replace(/\/+$/, '')
 
-export const normalizeProviderBaseUrl = (
-  kind: ProviderKind,
-  value: string | undefined,
-): string | undefined => {
+export const normalizeProviderBaseUrl = (kind: ProviderKind, value: string | undefined): string | undefined => {
   const trimmed = value?.trim()
   if (!trimmed) return undefined
 
   const normalized = stripTrailingSlashes(trimmed)
-  const legacyDefault = LEGACY_DEFAULT_BASE_URLS[kind]
-    .some((candidate) => stripTrailingSlashes(candidate) === normalized)
+  const legacyDefault = LEGACY_DEFAULT_BASE_URLS[kind].some(
+    (candidate) => stripTrailingSlashes(candidate) === normalized,
+  )
 
   return legacyDefault ? PROVIDER_KIND_DEFAULTS[kind].baseUrl : normalized
 }
 
-export const isDefaultProviderBaseUrl = (
-  kind: ProviderKind,
-  value: string | undefined,
-): boolean => {
+export const isDefaultProviderBaseUrl = (kind: ProviderKind, value: string | undefined): boolean => {
   const normalized = normalizeProviderBaseUrl(kind, value)
   return normalized === PROVIDER_KIND_DEFAULTS[kind].baseUrl
 }

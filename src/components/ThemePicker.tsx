@@ -23,7 +23,9 @@ export function ThemePicker() {
       const resolvedTheme = theme === 'system' ? (media.matches ? 'light' : 'dark') : theme
       root.dataset.theme = resolvedTheme
       root.style.colorScheme = resolvedTheme
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', resolvedTheme === 'light' ? '#f4f6f3' : '#101217')
+      document
+        .querySelector('meta[name="theme-color"]')
+        ?.setAttribute('content', resolvedTheme === 'light' ? '#f4f6f3' : '#101217')
     }
     applyTheme()
     if (theme !== 'system') return undefined
@@ -37,22 +39,50 @@ export function ThemePicker() {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
-        <button className="inline-flex min-h-11 min-w-11 items-center gap-1.5 rounded-md border border-transparent px-2 text-[10px] text-muted transition-colors hover:border-line hover:bg-surface-soft hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint/70 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas max-[580px]:size-11 max-[580px]:justify-center max-[580px]:px-0" type="button" aria-label={`${t('theme.label')}: ${t(currentOption.labelKey)}`} title={`${t('theme.label')}: ${t(currentOption.labelKey)}`}>
+        <button
+          className="inline-flex min-h-11 min-w-11 items-center gap-1.5 rounded-md border border-transparent px-2 text-[10px] text-muted transition-colors hover:border-line hover:bg-surface-soft hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint/70 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas max-[580px]:size-11 max-[580px]:justify-center max-[580px]:px-0"
+          type="button"
+          aria-label={`${t('theme.label')}: ${t(currentOption.labelKey)}`}
+          title={`${t('theme.label')}: ${t(currentOption.labelKey)}`}
+        >
           <CurrentIcon size={16} />
           <span className="max-[580px]:hidden">{t('theme.label')}</span>
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content className="z-[70] w-[190px] rounded-[9px] border border-line bg-surface p-1.5 text-ink shadow-[0_18px_50px_color-mix(in_srgb,var(--canvas)_22%,transparent)] outline-none" sideOffset={9} align="end" aria-label={t('theme.appearance')}>
-          <div className="flex items-center gap-1.5 border-b border-line-soft px-2 pb-2 pt-1.5 font-mono text-[9px] uppercase tracking-[0.08em] text-faint"><Palette size={14} /><span>{t('theme.appearance')}</span></div>
-          <DropdownMenu.RadioGroup aria-label={t('theme.appearance')} value={theme} onValueChange={(value) => setTheme(value as ThemeMode)}>
+        <DropdownMenu.Content
+          className="z-[70] w-[190px] rounded-[9px] border border-line bg-surface p-1.5 text-ink shadow-[0_18px_50px_color-mix(in_srgb,var(--canvas)_22%,transparent)] outline-none"
+          sideOffset={9}
+          align="end"
+          aria-label={t('theme.appearance')}
+        >
+          <div className="flex items-center gap-1.5 border-b border-line-soft px-2 pb-2 pt-1.5 font-mono text-[9px] uppercase tracking-[0.08em] text-faint">
+            <Palette size={14} />
+            <span>{t('theme.appearance')}</span>
+          </div>
+          <DropdownMenu.RadioGroup
+            aria-label={t('theme.appearance')}
+            value={theme}
+            onValueChange={(value) => setTheme(value as ThemeMode)}
+          >
             {options.map((option) => {
               const Icon = option.icon
               return (
-                <DropdownMenu.RadioItem className="relative flex min-h-11 items-center gap-2 rounded-md px-2 py-2 text-muted outline-none transition-colors hover:bg-surface-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-mint/70 data-[highlighted]:bg-surface-hover data-[highlighted]:text-ink data-[highlighted]:ring-2 data-[highlighted]:ring-inset data-[highlighted]:ring-mint/70 data-[state=checked]:bg-mint/5 data-[state=checked]:text-ink" value={option.value} key={option.value}>
-                  <span className="grid size-6 place-items-center rounded-md bg-mint/10 text-mint"><Icon size={15} /></span>
-                  <span className="flex flex-1 flex-col gap-0.5"><strong className="text-[11px] font-medium">{t(option.labelKey)}</strong><small className="text-[9px] text-faint">{t(option.descriptionKey)}</small></span>
-                  <DropdownMenu.ItemIndicator className="text-mint"><Check size={14} /></DropdownMenu.ItemIndicator>
+                <DropdownMenu.RadioItem
+                  className="relative flex min-h-11 items-center gap-2 rounded-md px-2 py-2 text-muted outline-none transition-colors hover:bg-surface-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-mint/70 data-[highlighted]:bg-surface-hover data-[highlighted]:text-ink data-[highlighted]:ring-2 data-[highlighted]:ring-inset data-[highlighted]:ring-mint/70 data-[state=checked]:bg-mint/5 data-[state=checked]:text-ink"
+                  value={option.value}
+                  key={option.value}
+                >
+                  <span className="grid size-6 place-items-center rounded-md bg-mint/10 text-mint">
+                    <Icon size={15} />
+                  </span>
+                  <span className="flex flex-1 flex-col gap-0.5">
+                    <strong className="text-[11px] font-medium">{t(option.labelKey)}</strong>
+                    <small className="text-[9px] text-faint">{t(option.descriptionKey)}</small>
+                  </span>
+                  <DropdownMenu.ItemIndicator className="text-mint">
+                    <Check size={14} />
+                  </DropdownMenu.ItemIndicator>
                 </DropdownMenu.RadioItem>
               )
             })}

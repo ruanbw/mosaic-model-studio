@@ -11,8 +11,7 @@ export interface GenerationOptions {
   signal?: AbortSignal
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 const isAbortErrorValue = (error: unknown, seen: Set<unknown>): boolean => {
   if (!isRecord(error) || seen.has(error)) return false
@@ -116,10 +115,7 @@ const createGeminiClient = async (provider: Provider) => {
   })
 }
 
-export const fetchProviderModels = async (
-  provider: Provider,
-  options: GenerationOptions = {},
-): Promise<string[]> => {
+export const fetchProviderModels = async (provider: Provider, options: GenerationOptions = {}): Promise<string[]> => {
   assertApiKey(provider)
   const modelIds: string[] = []
 
@@ -166,7 +162,9 @@ const isResponseFormatUnsupported = (error: unknown) => {
   if (!(error instanceof Error)) return false
   const candidate = error as Error & { status?: number }
   if (![400, 404, 422].includes(candidate.status ?? 0)) return false
-  return /response.?format|json.?mode|output.?config|json.?schema|structured.?output|unsupported|unexpected.?keyword/i.test(candidate.message)
+  return /response.?format|json.?mode|output.?config|json.?schema|structured.?output|unsupported|unexpected.?keyword/i.test(
+    candidate.message,
+  )
 }
 
 const generateWithOpenAICompatible = async (

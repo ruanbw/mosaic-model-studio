@@ -69,7 +69,7 @@ export const createDemoResult = (model: ModelOption, index = 0): GenerationResul
     accent: model.accent,
     status: 'success',
     project,
-    html: project.kind === 'static' ? project.files[0]?.content ?? '' : '',
+    html: project.kind === 'static' ? (project.files[0]?.content ?? '') : '',
     raw: project.kind === 'static' ? 'Demo static document' : JSON.stringify(project, null, 2),
     elapsedMs: 820 + index * 460,
     createdAt: Date.now(),

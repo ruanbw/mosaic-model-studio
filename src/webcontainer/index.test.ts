@@ -80,10 +80,9 @@ const supportedWindow = {
 }
 
 const mockBoot = (manager: WebContainerManager, container: FakeWebContainer) =>
-  vi.spyOn(
-    manager as unknown as { ensureBooted: (epoch: number) => Promise<WebContainer> },
-    'ensureBooted',
-  ).mockResolvedValue(container.asWebContainer())
+  vi
+    .spyOn(manager as unknown as { ensureBooted: (epoch: number) => Promise<WebContainer> }, 'ensureBooted')
+    .mockResolvedValue(container.asWebContainer())
 
 const waitForProcesses = (container: FakeWebContainer, count: number) =>
   vi.waitFor(() => expect(container.spawn).toHaveBeenCalledTimes(count), { timeout: 1_000 })

@@ -1,10 +1,6 @@
 import { nanoid } from 'nanoid'
 import { create } from 'zustand'
-import {
-  createJSONStorage,
-  persist,
-  type PersistStorage,
-} from 'zustand/middleware'
+import { createJSONStorage, persist, type PersistStorage } from 'zustand/middleware'
 import { isAllowedProviderBaseUrl, normalizeProviderBaseUrl } from './providerUrl'
 import {
   DEFAULT_PROMPT,
@@ -53,8 +49,14 @@ const initialSettings: PersistedSettings = {
   theme: 'dark' as ThemeMode,
 }
 
-const parseModels = (models: string) =>
-  [...new Set(models.split(/[\n,]/).map((model) => model.trim()).filter(Boolean))]
+const parseModels = (models: string) => [
+  ...new Set(
+    models
+      .split(/[\n,]/)
+      .map((model) => model.trim())
+      .filter(Boolean),
+  ),
+]
 
 const accentPalette = ['#8ef0c4', '#f3b98b', '#a7b8ff', '#d5a6ff', '#f0a6ca', '#91d7ef']
 
@@ -83,10 +85,8 @@ const createSettingsStorage = (): PersistStorage<PersistedSettings> | undefined 
     getItem: (name) => jsonStorage.getItem(name),
     setItem: (name, value) => {
       const version = value.version ?? PERSIST_VERSION
-      if (
-        persistedSettingsCache.version === version &&
-        areSettingsEqual(persistedSettingsCache.state, value.state)
-      ) return
+      if (persistedSettingsCache.version === version && areSettingsEqual(persistedSettingsCache.state, value.state))
+        return
 
       // Update the cache before the synchronous localStorage write. This keeps
       // back-to-back runtime updates from racing into duplicate JSON writes.
@@ -109,38 +109,35 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isProviderKind = (value: unknown): value is Provider['kind'] =>
   typeof value === 'string' && providerKinds.has(value)
 
-const isThemeMode = (value: unknown): value is ThemeMode =>
-  typeof value === 'string' && themeModes.has(value)
+const isThemeMode = (value: unknown): value is ThemeMode => typeof value === 'string' && themeModes.has(value)
 
-const isNonEmptyString = (value: unknown): value is string =>
-  typeof value === 'string' && value.trim().length > 0
+const isNonEmptyString = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0
 
 const sanitizeProvider = (value: unknown): Provider | null => {
   if (!isRecord(value) || !isNonEmptyString(value.id)) return null
 
   const id = value.id.trim()
   const fallback = DEFAULT_PROVIDERS.find((provider) => provider.id === id)
-  const name = isNonEmptyString(value.name)
-    ? value.name.trim()
-    : fallback?.name ?? id
-  const kind = isProviderKind(value.kind) ? value.kind : fallback?.kind ?? 'openai-compatible'
-  const apiKey = typeof value.apiKey === 'string' ? value.apiKey.trim() : fallback?.apiKey ?? ''
+  const name = isNonEmptyString(value.name) ? value.name.trim() : (fallback?.name ?? id)
+  const kind = isProviderKind(value.kind) ? value.kind : (fallback?.kind ?? 'openai-compatible')
+  const apiKey = typeof value.apiKey === 'string' ? value.apiKey.trim() : (fallback?.apiKey ?? '')
   const rawBaseUrl = typeof value.baseUrl === 'string' ? value.baseUrl.trim() : undefined
   const normalizedBaseUrl = rawBaseUrl ? normalizeProviderBaseUrl(kind, rawBaseUrl) : fallback?.baseUrl
   if (rawBaseUrl && normalizedBaseUrl && !isAllowedProviderBaseUrl(normalizedBaseUrl) && !fallback) return null
-  const baseUrl = normalizedBaseUrl && isAllowedProviderBaseUrl(normalizedBaseUrl)
-    ? normalizedBaseUrl
-    : fallback?.baseUrl
+  const baseUrl =
+    normalizedBaseUrl && isAllowedProviderBaseUrl(normalizedBaseUrl) ? normalizedBaseUrl : fallback?.baseUrl
   const models = Array.isArray(value.models)
-    ? [...new Set(value.models
-        .filter((model): model is string => typeof model === 'string')
-        .map((model) => model.trim())
-        .filter(Boolean))]
-    : fallback?.models ?? []
-  const accent = isNonEmptyString(value.accent)
-    ? value.accent.trim()
-    : fallback?.accent ?? accentPalette[0]!
-  const enabled = typeof value.enabled === 'boolean' ? value.enabled : fallback?.enabled ?? true
+    ? [
+        ...new Set(
+          value.models
+            .filter((model): model is string => typeof model === 'string')
+            .map((model) => model.trim())
+            .filter(Boolean),
+        ),
+      ]
+    : (fallback?.models ?? [])
+  const accent = isNonEmptyString(value.accent) ? value.accent.trim() : (fallback?.accent ?? accentPalette[0]!)
+  const enabled = typeof value.enabled === 'boolean' ? value.enabled : (fallback?.enabled ?? true)
 
   return { id, name, kind, apiKey, baseUrl, models, accent, enabled }
 }
@@ -162,38 +159,33 @@ const sanitizeProviders = (value: unknown, fallback: Provider[]): Provider[] => 
   return value.length > 0 && providers.length === 0 ? fallback : providers
 }
 
-const sanitizeSelectedModelKeys = (
-  value: unknown,
-  providers: Provider[],
-  fallback: string[],
-): string[] => {
+const sanitizeSelectedModelKeys = (value: unknown, providers: Provider[], fallback: string[]): string[] => {
   if (!Array.isArray(value)) return fallback
 
-  const keys = [...new Set(value
-    .filter((key): key is string => typeof key === 'string')
-    .map((key) => key.trim())
-    .filter(Boolean))]
+  const keys = [
+    ...new Set(
+      value
+        .filter((key): key is string => typeof key === 'string')
+        .map((key) => key.trim())
+        .filter(Boolean),
+    ),
+  ]
   if (value.length > 0 && keys.length === 0) return fallback
 
-  const availableKeys = new Set(providers
-    .filter((provider) => provider.enabled)
-    .flatMap((provider) => provider.models.map((model) => `${provider.id}::${model}`)))
+  const availableKeys = new Set(
+    providers
+      .filter((provider) => provider.enabled)
+      .flatMap((provider) => provider.models.map((model) => `${provider.id}::${model}`)),
+  )
   return keys.filter((key) => availableKeys.has(key))
 }
 
-const sanitizePersistedSettings = (
-  persisted: unknown,
-  current: PersistedSettings,
-): PersistedSettings => {
+const sanitizePersistedSettings = (persisted: unknown, current: PersistedSettings): PersistedSettings => {
   const source = isRecord(persisted) ? persisted : {}
   const providers = sanitizeProviders(source.providers, current.providers)
   return {
     providers,
-    selectedModelKeys: sanitizeSelectedModelKeys(
-      source.selectedModelKeys,
-      providers,
-      current.selectedModelKeys,
-    ),
+    selectedModelKeys: sanitizeSelectedModelKeys(source.selectedModelKeys, providers, current.selectedModelKeys),
     prompt: typeof source.prompt === 'string' ? source.prompt : current.prompt,
     demoMode: typeof source.demoMode === 'boolean' ? source.demoMode : current.demoMode,
     theme: isThemeMode(source.theme) ? source.theme : current.theme,
@@ -253,9 +245,7 @@ export const useAppStore = create<AppState>()(
       removeProvider: (providerId) =>
         set((state) => ({
           providers: state.providers.filter((provider) => provider.id !== providerId),
-          selectedModelKeys: state.selectedModelKeys.filter(
-            (key) => !key.startsWith(`${providerId}::`),
-          ),
+          selectedModelKeys: state.selectedModelKeys.filter((key) => !key.startsWith(`${providerId}::`)),
         })),
       setDemoMode: (demoMode) => set({ demoMode }),
       setTheme: (theme) => set({ theme }),
@@ -272,8 +262,7 @@ export const useAppStore = create<AppState>()(
       removeResult: (resultId) =>
         set((state) => ({ results: state.results.filter((result) => result.id !== resultId) })),
       clearResults: () => set({ results: [] }),
-      clearConfiguration: () =>
-        set({ providers: [], selectedModelKeys: [], prompt: '', demoMode: true, results: [] }),
+      clearConfiguration: () => set({ providers: [], selectedModelKeys: [], prompt: '', demoMode: true, results: [] }),
       restoreDefaults: () => set({ ...initialSettings }),
     }),
     {
