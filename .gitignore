@@ -9,3 +9,5 @@ dist
 !.env.example
 .vercel
 .env*
+test-results/
+playwright-report/
