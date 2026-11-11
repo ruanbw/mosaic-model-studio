@@ -159,7 +159,8 @@ curl -I https://<your-deployment>.vercel.app
 ### 当前限制
 
 - Vitest 是 Node 环境单元测试，不能替代真实 Provider CORS / WebContainer 验收。
-- Playwright 覆盖本地 demo 和 UI 流程，不使用真实 Provider key。
+- Playwright 覆盖本地 demo、UI 流程、设置持久化、并发上限与取消流程。Provider 请求通过 `page.route` 拦截，不使用真实 Provider key，也不验证真实 CORS。
+- CI（`.github/workflows/ci.yml`）在每次 push 到 `main` 和 pull request 时运行全部 e2e。失败时会上传 `playwright-report` 与 `test-results` 作为构建产物，保留 7 天。
 - BYOK key 仍暴露给同源脚本；生产多租户应用应使用认证后端代理。
 - WebContainer 运行时许可证、配额和商业生产条款需单独确认。
 
@@ -337,7 +338,8 @@ The response should include `Cross-Origin-Opener-Policy: same-origin` and `Cross
 ### Known limitations
 
 - Vitest runs in Node and cannot replace real Provider CORS or WebContainer validation.
-- Playwright covers local demo/UI flows and does not use real provider keys.
+- Playwright covers local demo, UI flows, settings persistence, the concurrency cap, and cancellation. Provider requests are intercepted with `page.route`, so no real provider keys are used and real CORS is not verified.
+- CI (`.github/workflows/ci.yml`) runs the full e2e suite on every push to `main` and on pull requests. Failures upload `playwright-report` and `test-results` as artifacts kept for 7 days.
 - BYOK keys remain available to same-origin scripts; use an authenticated backend proxy for multi-tenant production.
 - Confirm WebContainer licensing, quotas, and commercial production terms separately.
 
