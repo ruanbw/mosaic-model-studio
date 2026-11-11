@@ -20,7 +20,6 @@ import { AppSettings } from './studio/AppSettings'
 import { StudioPrompt } from './studio/StudioPrompt'
 import { StudioResults } from './studio/StudioResults'
 import {
-  MAX_CONCURRENT_REQUESTS,
   appendRunHistory,
   isEditableTarget,
   modelKey,
@@ -222,6 +221,7 @@ function App() {
       token,
       runId,
       results,
+      maxConcurrentRequests,
     }) => {
       const isCurrent = () =>
         ownsActiveGeneration(token, runId) && activeGenerationRef.current?.controller.signal === signal
@@ -290,7 +290,7 @@ function App() {
           await runModel(index)
         }
       }
-      const workerCount = Math.min(MAX_CONCURRENT_REQUESTS, models.length)
+      const workerCount = Math.min(maxConcurrentRequests, models.length)
       await Promise.all(Array.from({ length: workerCount }, () => runWorker()))
       return results
     },
@@ -313,6 +313,8 @@ function App() {
     preserveResults = false,
   ): boolean => {
     if (useAppStore.getState().isRunning || activeGenerationRef.current) return false
+    // Read once when the run starts so changing the setting mid-run cannot alter its worker count.
+    const maxConcurrentRequests = useAppStore.getState().maxConcurrentRequests
     if (!currentPrompt.trim()) {
       toast.error(t('prompt.empty'))
       return false
@@ -364,6 +366,7 @@ function App() {
       token,
       runId,
       results,
+      maxConcurrentRequests,
     })
     return true
   }

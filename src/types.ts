@@ -63,7 +63,12 @@ export interface PersistedSettings {
   prompt: string
   demoMode: boolean
   theme: ThemeMode
+  maxConcurrentRequests: number
 }
+
+export const DEFAULT_MAX_CONCURRENT_REQUESTS = 3
+export const MIN_MAX_CONCURRENT_REQUESTS = 1
+export const MAX_MAX_CONCURRENT_REQUESTS = 6
 
 export const PROVIDER_KIND_LABELS: Record<ProviderKind, string> = {
   openai: 'OpenAI',

@@ -199,3 +199,82 @@ test('stopping a mocked provider request preserves a cancelled result', async ({
     await requestHandled.promise
   }
 })
+
+test('concurrency setting is editable, clamped, and persisted', async ({ page }) => {
+  await setEnglish(page)
+  await waitForStudio(page)
+
+  await page.getByRole('button', { name: 'Settings', exact: true }).first().click()
+  const input = page.getByLabel('Concurrent requests')
+  await expect(input).toHaveValue('3')
+
+  await input.fill('5')
+  await expect.poll(async () => (await currentSettings(page))?.state?.maxConcurrentRequests).toBe(5)
+
+  // Out-of-range values are clamped by the store, not stored raw.
+  await input.fill('42')
+  await expect.poll(async () => (await currentSettings(page))?.state?.maxConcurrentRequests).toBe(6)
+
+  await page.reload()
+  await page.getByRole('button', { name: 'Settings', exact: true }).first().click()
+  await expect(page.getByLabel('Concurrent requests')).toHaveValue('6')
+})
+
+test('the concurrency setting caps in-flight provider requests', async ({ page }) => {
+  await setEnglish(page)
+  const models = ['mock-a', 'mock-b', 'mock-c', 'mock-d']
+  const settings = {
+    providers: [
+      {
+        id: 'playwright-mock',
+        name: 'Playwright mock',
+        kind: 'openai',
+        apiKey: 'e2e-placeholder-key',
+        baseUrl: 'https://api.openai.test/v1',
+        models,
+        accent: '#8ef0c4',
+        enabled: true,
+      },
+    ],
+    selectedModelKeys: models.map((model) => `playwright-mock::${model}`),
+    prompt: 'Measure concurrency',
+    demoMode: false,
+    theme: 'dark',
+    maxConcurrentRequests: 2,
+  }
+  await page.addInitScript(
+    ({ key, state }) => {
+      window.localStorage.setItem(key, JSON.stringify({ state, version: 1 }))
+    },
+    { key: appStorageKey, state: settings },
+  )
+
+  let inFlight = 0
+  let peak = 0
+  const releaseAll = deferred()
+  await page.route('https://api.openai.test/v1/chat/completions', async (route) => {
+    inFlight += 1
+    peak = Math.max(peak, inFlight)
+    await releaseAll.promise
+    inFlight -= 1
+    // A 400 is not retried by the SDK, so each model issues exactly one request.
+    await route.fulfill({
+      status: 400,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: { message: 'mock rejection' } }),
+    })
+  })
+
+  try {
+    await waitForStudio(page)
+    await page.getByRole('button', { name: /Generate pages/ }).click()
+
+    // Wait until the cap is reached, then confirm no third request starts while the first two are held.
+    await expect.poll(() => inFlight).toBe(2)
+    await page.waitForTimeout(500)
+    expect(inFlight).toBe(2)
+    expect(peak).toBe(2)
+  } finally {
+    releaseAll.resolve()
+  }
+})

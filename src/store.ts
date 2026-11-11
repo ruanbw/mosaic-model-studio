@@ -3,9 +3,12 @@ import { create } from 'zustand'
 import { createJSONStorage, persist, type PersistStorage } from 'zustand/middleware'
 import { isAllowedProviderBaseUrl, normalizeProviderBaseUrl } from './providerUrl'
 import {
+  DEFAULT_MAX_CONCURRENT_REQUESTS,
   DEFAULT_PROMPT,
   DEFAULT_PROVIDERS,
   DEFAULT_SELECTED_MODEL_KEYS,
+  MAX_MAX_CONCURRENT_REQUESTS,
+  MIN_MAX_CONCURRENT_REQUESTS,
   type AppView,
   type GenerationResult,
   type PersistedSettings,
@@ -20,6 +23,7 @@ export interface AppState {
   prompt: string
   demoMode: boolean
   theme: ThemeMode
+  maxConcurrentRequests: number
   activeView: AppView
   results: GenerationResult[]
   isRunning: boolean
@@ -32,6 +36,7 @@ export interface AppState {
   removeProvider: (providerId: string) => void
   setDemoMode: (enabled: boolean) => void
   setTheme: (theme: ThemeMode) => void
+  setMaxConcurrentRequests: (value: number) => void
   setRunning: (running: boolean) => void
   replaceResults: (results: GenerationResult[]) => void
   upsertResult: (result: GenerationResult) => void
@@ -47,6 +52,7 @@ const initialSettings: PersistedSettings = {
   prompt: DEFAULT_PROMPT,
   demoMode: true,
   theme: 'dark' as ThemeMode,
+  maxConcurrentRequests: DEFAULT_MAX_CONCURRENT_REQUESTS,
 }
 
 const parseModels = (models: string) => [
@@ -75,7 +81,8 @@ const areSettingsEqual = (left: PersistedSettings, right: PersistedSettings) =>
   left.selectedModelKeys === right.selectedModelKeys &&
   left.prompt === right.prompt &&
   left.demoMode === right.demoMode &&
-  left.theme === right.theme
+  left.theme === right.theme &&
+  left.maxConcurrentRequests === right.maxConcurrentRequests
 
 const createSettingsStorage = (): PersistStorage<PersistedSettings> | undefined => {
   const jsonStorage = createJSONStorage<PersistedSettings>(() => localStorage)
@@ -110,6 +117,11 @@ const isProviderKind = (value: unknown): value is Provider['kind'] =>
   typeof value === 'string' && providerKinds.has(value)
 
 const isThemeMode = (value: unknown): value is ThemeMode => typeof value === 'string' && themeModes.has(value)
+
+export const clampMaxConcurrentRequests = (value: unknown): number => {
+  if (typeof value !== 'number' || !Number.isInteger(value)) return DEFAULT_MAX_CONCURRENT_REQUESTS
+  return Math.min(MAX_MAX_CONCURRENT_REQUESTS, Math.max(MIN_MAX_CONCURRENT_REQUESTS, value))
+}
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0
 
@@ -189,6 +201,10 @@ const sanitizePersistedSettings = (persisted: unknown, current: PersistedSetting
     prompt: typeof source.prompt === 'string' ? source.prompt : current.prompt,
     demoMode: typeof source.demoMode === 'boolean' ? source.demoMode : current.demoMode,
     theme: isThemeMode(source.theme) ? source.theme : current.theme,
+    maxConcurrentRequests:
+      source.maxConcurrentRequests === undefined
+        ? current.maxConcurrentRequests
+        : clampMaxConcurrentRequests(source.maxConcurrentRequests),
   }
 }
 
@@ -198,6 +214,7 @@ const toPersistedSettings = (state: AppState): PersistedSettings => ({
   prompt: state.prompt,
   demoMode: state.demoMode,
   theme: state.theme,
+  maxConcurrentRequests: state.maxConcurrentRequests,
 })
 
 export const useAppStore = create<AppState>()(
@@ -249,6 +266,7 @@ export const useAppStore = create<AppState>()(
         })),
       setDemoMode: (demoMode) => set({ demoMode }),
       setTheme: (theme) => set({ theme }),
+      setMaxConcurrentRequests: (value) => set({ maxConcurrentRequests: clampMaxConcurrentRequests(value) }),
       setRunning: (isRunning) => set({ isRunning }),
       replaceResults: (results) => set({ results }),
       upsertResult: (result) =>

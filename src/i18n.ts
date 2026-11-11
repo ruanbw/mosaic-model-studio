@@ -234,6 +234,8 @@ const resources = {
         configuredCount: '已配置密钥',
         selectedCount: '已选模型',
         promptLength: '提示词长度',
+        concurrency: '并发请求数',
+        concurrencyCopy: '同一次运行中同时发起的模型请求数量，范围 1–6。按你的提供商额度调整。',
         restore: '恢复默认配置',
         restoreConfirm: '恢复默认配置会覆盖当前提供商和提示词，确定继续吗？',
         restored: '已恢复默认配置',
@@ -566,6 +568,9 @@ const resources = {
         configuredCount: 'Configured keys',
         selectedCount: 'Selected models',
         promptLength: 'Prompt length',
+        concurrency: 'Concurrent requests',
+        concurrencyCopy:
+          'How many model requests one run sends at the same time, from 1 to 6. Adjust to your provider limits.',
         restore: 'Restore defaults',
         restoreConfirm: 'Restore defaults? Current providers and prompt will be replaced.',
         restored: 'Default configuration restored',

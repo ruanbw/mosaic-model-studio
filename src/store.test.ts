@@ -123,4 +123,46 @@ describe('app store persistence', () => {
     expect(state.demoMode).toBe(true)
     expect(state.theme).toBe('dark')
   })
+
+  it('defaults concurrency to 3 when older persisted settings lack the field', async () => {
+    storage.set('mosaic-model-studio', JSON.stringify({ state: { theme: 'light' }, version: 1 }))
+
+    const { useAppStore } = await loadStore()
+    await useAppStore.persist.rehydrate()
+
+    expect(useAppStore.getState().maxConcurrentRequests).toBe(3)
+  })
+
+  it('clamps persisted concurrency into the 1-6 range', async () => {
+    storage.set('mosaic-model-studio', JSON.stringify({ state: { maxConcurrentRequests: 99 }, version: 1 }))
+
+    const { useAppStore } = await loadStore()
+    await useAppStore.persist.rehydrate()
+
+    expect(useAppStore.getState().maxConcurrentRequests).toBe(6)
+  })
+
+  it('resets non-integer or non-numeric persisted concurrency to the default', async () => {
+    storage.set('mosaic-model-studio', JSON.stringify({ state: { maxConcurrentRequests: '4' }, version: 1 }))
+
+    const { useAppStore } = await loadStore()
+    await useAppStore.persist.rehydrate()
+
+    expect(useAppStore.getState().maxConcurrentRequests).toBe(3)
+  })
+
+  it('setMaxConcurrentRequests clamps out-of-range values and resets fractions to the default', async () => {
+    const { useAppStore } = await loadStore()
+    const { setMaxConcurrentRequests } = useAppStore.getState()
+
+    setMaxConcurrentRequests(0)
+    expect(useAppStore.getState().maxConcurrentRequests).toBe(1)
+
+    setMaxConcurrentRequests(42)
+    expect(useAppStore.getState().maxConcurrentRequests).toBe(6)
+
+    // Non-integers are not rounded; they fall back to the default so the value is always a valid count.
+    setMaxConcurrentRequests(2.7)
+    expect(useAppStore.getState().maxConcurrentRequests).toBe(3)
+  })
 })

@@ -2,8 +2,6 @@ import { addRunHistoryEntry, deserializeRunHistory, serializeRunHistory } from '
 import { RUN_HISTORY_STORAGE_KEY } from '../components/HistoryPanel'
 import type { GenerationResult, ModelOption, Provider } from '../types'
 
-export const MAX_CONCURRENT_REQUESTS = 3
-
 export interface GenerationPayload {
   models: ModelOption[]
   providers: Provider[]
@@ -13,6 +11,7 @@ export interface GenerationPayload {
   token: number
   runId: string
   results: GenerationResult[]
+  maxConcurrentRequests: number
 }
 
 export interface ActiveGeneration {

@@ -1,16 +1,27 @@
 import { CheckCircle2, Database, Info, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Provider } from '../types'
+import { MAX_MAX_CONCURRENT_REQUESTS, MIN_MAX_CONCURRENT_REQUESTS } from '../types'
 
 interface SettingsViewProps {
   providers: Provider[]
   promptLength: number
   selectedCount: number
+  maxConcurrentRequests: number
+  onMaxConcurrentRequestsChange: (value: number) => void
   onRestore: () => void
   onClear: () => void
 }
 
-export function SettingsView({ providers, promptLength, selectedCount, onRestore, onClear }: SettingsViewProps) {
+export function SettingsView({
+  providers,
+  promptLength,
+  selectedCount,
+  maxConcurrentRequests,
+  onMaxConcurrentRequestsChange,
+  onRestore,
+  onClear,
+}: SettingsViewProps) {
   const { t } = useTranslation()
   const configuredCount = providers.filter((provider) => provider.apiKey.trim()).length
   return (
@@ -53,6 +64,23 @@ export function SettingsView({ providers, promptLength, selectedCount, onRestore
               <strong className="font-mono text-[15px] font-medium text-ink">{promptLength}</strong>
             </div>
           </div>
+          <label className="mb-4 flex min-w-0 flex-col gap-1.5">
+            <span className="break-words text-[11px] font-medium text-ink">{t('settings.concurrency')}</span>
+            <span className="break-words text-[10px] text-muted">{t('settings.concurrencyCopy')}</span>
+            <input
+              className="min-h-10 w-24 rounded-md border border-line bg-surface-soft px-2.5 font-mono text-[13px] text-ink focus-visible:outline-none focus-visible:ring-2"
+              type="number"
+              inputMode="numeric"
+              min={MIN_MAX_CONCURRENT_REQUESTS}
+              max={MAX_MAX_CONCURRENT_REQUESTS}
+              step={1}
+              value={maxConcurrentRequests}
+              onChange={(event) => {
+                const next = event.currentTarget.valueAsNumber
+                if (Number.isFinite(next)) onMaxConcurrentRequestsChange(next)
+              }}
+            />
+          </label>
           <div className="flex flex-wrap gap-2 max-[580px]:flex-col">
             <button
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-[#353b44] bg-surface-soft px-3 text-[11px] font-semibold text-ink transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint/70 max-[580px]:w-full"
