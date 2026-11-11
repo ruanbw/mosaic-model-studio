@@ -129,6 +129,7 @@ function validatePreviewUrl(value: string): string {
 }
 
 function sanitizeLogLine(line: string): string {
+  // eslint-disable-next-line no-control-regex -- strips ANSI escape sequences from process output
   const normalized = line.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, '').trimEnd()
   const withoutSpinner = normalized.replace(/^(?:[|/\\-]\s*){5,}/, '').trimStart()
   if (!withoutSpinner || /^[\s|/\\-]+$/.test(withoutSpinner)) return ''
@@ -391,22 +392,25 @@ export class WebContainerManager {
   }
 
   private createBootAttempt(epoch: number, previousAttempt?: BootAttempt): BootAttempt {
-    let attempt: BootAttempt
-    const promise = Promise.resolve().then(async () => {
-      if (previousAttempt) {
-        try {
-          await withTimeout(previousAttempt.promise, BOOT_TIMEOUT_MS, new BootTimeoutError())
-        } catch (error) {
-          if (error instanceof BootTimeoutError) previousAttempt.abandoned = true
-          // A failed or abandoned previous attempt must not block a fresh boot forever.
+    // `attempt` is only read inside the async callback, which runs after this
+    // object literal has been initialized, so the self-reference is safe.
+    const attempt: BootAttempt = {
+      promise: Promise.resolve().then(async () => {
+        if (previousAttempt) {
+          try {
+            await withTimeout(previousAttempt.promise, BOOT_TIMEOUT_MS, new BootTimeoutError())
+          } catch (error) {
+            if (error instanceof BootTimeoutError) previousAttempt.abandoned = true
+            // A failed or abandoned previous attempt must not block a fresh boot forever.
+          }
         }
-      }
-      if (this.disposed || attempt.abandoned || !this.isCurrent(epoch)) throw new StaleActivationError()
-      return this.bootRuntime()
-    })
-    attempt = { promise, abandoned: false }
+        if (this.disposed || attempt.abandoned || !this.isCurrent(epoch)) throw new StaleActivationError()
+        return this.bootRuntime()
+      }),
+      abandoned: false,
+    }
     this.bootAttempt = attempt
-    void promise.then(
+    void attempt.promise.then(
       (container) => {
         if (this.disposed || attempt.abandoned || this.bootAttempt !== attempt) {
           container.teardown()

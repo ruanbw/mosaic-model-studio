@@ -31,7 +31,10 @@ export interface RunHistoryEnvelope {
 }
 
 const MAX_DATE_TIME_MS = 8_640_000_000_000_000
+// Intentionally match control characters: they are stripped from untrusted history input.
+// eslint-disable-next-line no-control-regex
 const CONTROL_CHARACTERS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g
+// eslint-disable-next-line no-control-regex
 const ANSI_ESCAPE = /\u001B\[[0-?]*[ -/]*[@-~]/g
 const JSON_UNSAFE_CHARACTERS = /[<>&\u2028\u2029]/g
 const encoder = new TextEncoder()

@@ -178,6 +178,8 @@ const escapeHtml = (value: string) =>
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;')
 
+// Intentionally match control characters: they are rejected or stripped from model output.
+// eslint-disable-next-line no-control-regex
 const CONTROL_CHARACTERS = /[\u0000-\u001F\u007F-\u009F]/g
 
 const truncateText = (value: string, maxLength: number): string => {
@@ -227,6 +229,7 @@ const normalizePath = (value: unknown, options: { allowHostScaffold?: boolean } 
   const path = value.trim()
   if (!path) throw new Error('项目文件路径不能为空')
   if (path.length > MAX_PATH_LENGTH) throw new Error(`项目文件路径过长：${errorInput(value)}`)
+  // eslint-disable-next-line no-control-regex -- rejects control characters in file paths on purpose
   if (/[\u0000-\u001F\u007F-\u009F]/.test(path) || path.includes('\\')) {
     throw new Error(`项目文件路径不安全：${errorInput(value)}`)
   }
@@ -263,6 +266,7 @@ const normalizePath = (value: unknown, options: { allowHostScaffold?: boolean } 
 const assertTextContent = (content: string, path: string) => {
   // Binary payloads decoded into a JSON string almost always retain NUL or C0/C1 controls.
   // Rejecting those controls also prevents terminal/control-character smuggling.
+  // eslint-disable-next-line no-control-regex -- rejects non-text control characters in file content on purpose
   if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/.test(content)) {
     throw new Error(`项目文件不是安全文本：${path}`)
   }
