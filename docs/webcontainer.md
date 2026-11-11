@@ -171,6 +171,22 @@ Cross-Origin-Embedder-Policy: credentialless
 
 `credentialless` 会影响跨源子资源。应用依赖的外部资源必须能适配该策略；遇到资源被阻止时，先检查浏览器控制台和 Network 面板中的 CORS/CORP 提示，不要通过关闭 COOP/COEP 掩盖问题。若托管平台无法提供等价头，交互预览不可用，但静态 sandbox 路径仍可保留。
 
+### 主应用 CSP（Report-Only）
+
+`vercel.json` 为主应用下发 `Content-Security-Policy-Report-Only`，**目前只报告违规，不拦截资源**。选择这一状态的原因：
+
+- `connect-src` 必须放行用户自定义的 Provider Base URL，只能收窄到 `https:` 与 loopback HTTP，无法写成固定白名单。
+- WebContainer 预览是动态 origin 的跨源 `https` iframe，`frame-src` 只能放宽到 `https:`。
+- 本地 `vite preview` 不读取 `vercel.json`，且无法在本仓库内实测浏览器对该策略的执行结果。
+
+在线上确认“无误伤”之前，不要改为 `Content-Security-Policy`（强制模式）。上线后应：
+
+1. 在最终 URL 打开静态结果、Provider 请求与 WebContainer 预览，检查 `securitypolicyviolation` 事件与浏览器控制台中的 `Report-Only` 报告。
+2. 逐条核对违规的 `violatedDirective` 与 `blockedURI`，只为确实需要的来源补充白名单。
+3. 所有功能都无误报后，再切换为强制模式，并在切换后重新执行第 1 步。
+
+`index.html` 的主题初始化脚本已移到 `public/theme-init.js`，因此主应用 CSP 的 `script-src` 不需要 `'unsafe-inline'`。
+
 ### 最终 URL 验证
 
 部署后先清理 CDN/代理缓存，再对用户实际访问的最终 URL（包含最终路径，而不是 `localhost` 或未改动的 Vite 地址）执行检查：
